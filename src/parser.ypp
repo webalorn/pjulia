@@ -1,0 +1,84 @@
+%{
+  #define YYDEBUG 1
+  #include <iostream>
+	#include "util.hpp"
+  using namespace std;
+
+  // Declare stuff from Flex that Bison needs to know about:
+  extern "C" int yylex();
+  extern "C" FILE *yyin;
+ 
+  void yyerror(const char *s);
+%}
+%locations
+
+%union {
+  char *repr;
+}
+
+%token <repr> INT
+%token <repr> STRING
+%token <repr> IDENT
+%token <repr> KEYWORD
+%token <repr> OPERATOR
+
+%token <repr> INT_IDENT
+%token <repr> IDENT_LEFT_PAR
+%token <repr> INT_LEFT_PAR
+%token <repr> RIGHT_PAR_IDENT
+
+// ; = :: ( ) .
+%token END_FILE
+
+%start prog
+
+%%
+
+prog:
+  INT prog      {
+      cout << "bison found an int: " << $1 << endl;
+    }
+  | STRING prog {
+      cout << "bison found a string: " << $1 << endl; free($1);
+    }
+  | IDENT prog {
+      cout << "bison found an identifier: " << $1 << endl; free($1);
+    }
+  | KEYWORD prog {
+      cout << "bison found a keyword: " << $1 << endl; free($1);
+    }
+  | OPERATOR prog {
+      cout << "bison found a OPERATOR: " << $1 << endl; free($1);
+    }
+  | INT_IDENT prog {
+      cout << "bison found a INT_IDENT: " << $1 << endl; free($1);
+    }
+  | IDENT_LEFT_PAR prog {
+      cout << "bison found a IDENT_LEFT_PAR: " << $1 << endl; free($1);
+    }
+  | INT_LEFT_PAR prog {
+      cout << "bison found a INT_LEFT_PAR: " << $1 << endl; free($1);
+    }
+  | RIGHT_PAR_IDENT prog {
+      cout << "bison found a RIGHT_PAR_IDENT: " << $1 << endl; free($1);
+    }
+  | END_FILE prog {
+    cout << "End of the file\n";
+  }
+  | ';' prog { cout << "Char: " << ';' << endl; }
+  | '=' prog { cout << "Char: " << '=' << endl; }
+  | ':' prog { cout << "Char: " << ':' << endl; }
+  | '(' prog { cout << "Char: " << '(' << endl; }
+  | ')' prog { cout << "Char: " << ')' << endl; }
+  | '.' prog { cout << "Char: " << '.' << endl; }
+  | END_FILE {
+    cout << "End of the file\n";
+  }
+  ;
+%%
+
+void yyerror(const char *s) {
+  std::cout << "Parse error!  Message: " << s << std::endl;
+  // might as well halt now:
+  exit(-1);
+}
