@@ -1,9 +1,10 @@
 #include <iostream>
 #include "parser.tab.hpp"
 #include "util.hpp"
+#include "comp/ast.hpp"
 
 extern FILE* yyin;
-extern int yyparse(void);
+extern int yyparse(Ast*);
 extern int yydebug;
 
 int main(int argc, char** argv) {
@@ -19,11 +20,25 @@ int main(int argc, char** argv) {
 		filename = filenamePt->get();
 		FileObj file(filename);
 		yyin = file.c_file();
-		yyparse();
+		Ast ast;
+
+		int parseCode = yyparse(&ast);
+
+		if (parseCode == 2) {
+			throw PJuliaError("Parsing failed due to memory exhaustion");
+		}
+		else if (parseCode) {
+			throw PJuliaError("Parsing failed");
+		}
+		else if (*fParseOnly) {
+			return 0;
+		}
+
+		std::cout << ast;
 	}
-	catch (PJuliaError& e) {
+	catch (PJuliaBaseError& e) {
 		e.giveContext(filename);
-		std::cerr << "\n" << e.bashFormat() << e.get() << "\e[39m";
-		return -1;
+		std::cerr << "\n" << e.bashFormat() << e.get() << "\e[0m";
+		return 1;
 	}
 }

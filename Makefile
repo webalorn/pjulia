@@ -9,9 +9,13 @@ OBJS=$(subst .cpp,.o,$(SRCS))
 
 all: pjulia
 
-fbison:
+src/parser.tab.cpp: src/parser.ypp # Bison parser
 	bison -o src/parser.tab.cpp -d src/parser.ypp
+
+src/lex.yy.cpp: src/lexer.lpp # Flex lexer
 	flex -o src/lex.yy.cpp src/lexer.lpp
+
+fbison: src/parser.tab.cpp src/lex.yy.cpp
 
 pjulia: $(OBJS)
 	$(CXX) $(LDFLAGS) -o pjulia $(OBJS)

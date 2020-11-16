@@ -1,84 +1,318 @@
-%{
-  #define YYDEBUG 1
-  #include <iostream>
-	#include "util.hpp"
-  using namespace std;
+%require  "3.0"
 
-  // Declare stuff from Flex that Bison needs to know about:
-  extern "C" int yylex();
-  extern "C" FILE *yyin;
- 
-  void yyerror(const char *s);
+%code requires {
+	#include <deque>
+	struct AstNode;
+	struct Declaration;
+	struct Expr;
+	struct LValue;
+	struct BinOp;
+	struct UnaryOp;
+	struct ExprBlock;
+	struct CallParamList;
+	struct Ident;
+	struct Argument;
+	struct DefStruct;
+	struct DefFunc;
+
+	class ArgumentList;
+	class Ast;
+
+	extern "C" int yylex();
+}
+
+%{
+	#define YYDEBUG 1
+
+	#include <iostream>
+	#include "util.hpp"
+	#include "comp/ast.hpp"
+	#include "parser.tab.hpp"
+
+	extern "C" FILE *yyin;
+
+	void yyerror(Ast* ast, const char *s);
+
+	BinOp* newOp(const YYLTYPE loc, BinaryOperation op, AstNode* left, AstNode* right) {
+		return new BinOp(loc, op, sptOf<Expr>(left), sptOf<Expr>(right));
+	}
+	UnaryOp* newOp(const YYLTYPE loc, UnaryOperation op, AstNode* expr) {
+		return new UnaryOp(loc, op, sptOf<Expr>(expr));
+	}
 %}
 %locations
+%parse-param {Ast *ast}
 
 %union {
-  char *repr;
+	char *repr;
+	AstNode* astNode;
+	Declaration* astDeclaration;
+	Expr* astExpr;
+	LValue* astLvalue;
+	BinOp* astBinOp;
+	UnaryOp* astUnaryOp;
+	ExprBlock* astExprBlock;
+	CallParamList* astCallArgList;
+	Ident* astIdent;
+	Argument* astArgument;
+	DefStruct* astStructDef;
+	ArgumentList* astArgList;
+	DefFunc* astFuncDef;
 }
 
 %token <repr> INT
 %token <repr> STRING
 %token <repr> IDENT
-%token <repr> KEYWORD
-%token <repr> OPERATOR
 
 %token <repr> INT_IDENT
 %token <repr> IDENT_LEFT_PAR
 %token <repr> INT_LEFT_PAR
 %token <repr> RIGHT_PAR_IDENT
 
-// ; = :: ( ) .
+// Keywords
+%token ELSE ELSEIF END FALSE FOR FUNCTION IF MUTABLE RETURN STRUCT TRUE WHILE
+// Operations [with:   < > + - * % ^ !]
+%token OP_EQ OP_NEQ OP_LOWER_EQ OP_GREATER_EQ OP_AND OP_OR
+%token TYPE_SPEC // ::
+// Other char tokens:   : ; = ( ) . ,
 %token END_FILE
 
-%start prog
+%type <astDeclaration> decl
+%type <astExpr> maybeExpr expr elseRule
+%type <astLvalue> lvalue
+%type <astBinOp> binOpRule
+%type <astUnaryOp> unaryOpRule
+%type <astExprBlock> exprBlock exprBlocLeastOne
+%type <astCallArgList> callArgList callArgListLeastOne
+
+%type <astIdent> typeSpec
+%type <astArgument> argRule
+%type <astStructDef> structRule structDef
+%type <astArgList> structArgs funcArgs funcArgsLeastOne
+%type <astFuncDef> funcRule
+
+// Precedence
+%left OP_AND OP_OR
+%nonassoc OP_LOWER_EQ OP_GREATER_EQ '<' '>' OP_EQ OP_NEQ
+%left '+' '-'
+%left '*' '%'
+%left UANRY_MINUS
+%left '!'
+%left '.'
+
+%start prog_file
 
 %%
+prog_file: prog END_FILE {};
 
 prog:
-  INT prog      {
-      cout << "bison found an int: " << $1 << endl;
-    }
-  | STRING prog {
-      cout << "bison found a string: " << $1 << endl; free($1);
-    }
-  | IDENT prog {
-      cout << "bison found an identifier: " << $1 << endl; free($1);
-    }
-  | KEYWORD prog {
-      cout << "bison found a keyword: " << $1 << endl; free($1);
-    }
-  | OPERATOR prog {
-      cout << "bison found a OPERATOR: " << $1 << endl; free($1);
-    }
-  | INT_IDENT prog {
-      cout << "bison found a INT_IDENT: " << $1 << endl; free($1);
-    }
-  | IDENT_LEFT_PAR prog {
-      cout << "bison found a IDENT_LEFT_PAR: " << $1 << endl; free($1);
-    }
-  | INT_LEFT_PAR prog {
-      cout << "bison found a INT_LEFT_PAR: " << $1 << endl; free($1);
-    }
-  | RIGHT_PAR_IDENT prog {
-      cout << "bison found a RIGHT_PAR_IDENT: " << $1 << endl; free($1);
-    }
-  | END_FILE prog {
-    cout << "End of the file\n";
-  }
-  | ';' prog { cout << "Char: " << ';' << endl; }
-  | '=' prog { cout << "Char: " << '=' << endl; }
-  | ':' prog { cout << "Char: " << ':' << endl; }
-  | '(' prog { cout << "Char: " << '(' << endl; }
-  | ')' prog { cout << "Char: " << ')' << endl; }
-  | '.' prog { cout << "Char: " << '.' << endl; }
-  | END_FILE {
-    cout << "End of the file\n";
-  }
-  ;
+	prog decl {
+		if ($2) {
+			ast->declarations.push_back(sptOf<Declaration>($2));
+		}
+	}
+	| %empty {}
+;
+
+// Expression, struct or function
+decl:
+	  maybeExpr  { $$ = $1; }
+	| structRule { $$ = $1; }
+	| funcRule   { $$ = $1; }
+;
+
+// Catch "empty expressions"
+maybeExpr:
+	';' { $$ = nullptr; }
+	| expr ';' { $$ = $1; }
+;
+
+exprBlock:
+	%empty { $$ = new ExprBlock(@$); }
+	| ';' exprBlock { $$ = $2; $$->loc = @$; }
+	| exprBlocLeastOne { $$ = $1; $$->loc = @$; }
+;
+exprBlocLeastOne:
+	expr { $$ = new ExprBlock(@$); $$->add($1); }
+	| expr ';' exprBlock { $$ = $3; $$->add_front($1); $$->loc = @$; }
+;
+
+expr:
+	lvalue { $$ = $1; }
+	| INT { $$ = new IntConst(@$, $1); }
+	| STRING {
+		std::string value($1); // Still need to remove ""
+		StrConst* s = new StrConst(@$, std::string($1, 1, value.size()-2));
+		s->convertSpecialChars();
+		$$ = s;
+	}
+	| TRUE { $$ = new BoolConst(@$, true); }
+	| FALSE { $$ = new BoolConst(@$, false); }
+	| INT_IDENT {
+		char* splitPt = $1;
+		while ('0' <= *splitPt && *splitPt <= '9') {
+			splitPt++;
+		}
+		$$ = new BinOp(@$, OpTimes,
+			sptOf<Expr>(new IntConst(locLeft(@$, splitPt-$1), std::string($1, 0, splitPt-$1))),
+			sptOf<Expr>(new Ident(locRight(@$, splitPt-$1), std::string(splitPt)))
+		);
+	}
+	| INT_LEFT_PAR exprBlocLeastOne ')' {
+		std::string intPart($1);
+		intPart.pop_back(); // Remove '('
+		$$ = new BinOp(@$, OpTimes,
+			sptOf<Expr>(new IntConst(locLeft(@1, intPart.size()), intPart)),
+			sptOf<Expr>($2)
+		);
+	}
+	| '(' exprBlocLeastOne ')' { $$ = $2; }
+	| '(' expr RIGHT_PAR_IDENT {
+		$$ = new BinOp(@$, OpTimes,
+			sptOf<Expr>($2),
+			sptOf<Expr>(new Ident(locRight(@3, 1), std::string($3+1)))
+		);
+	}
+	| IDENT_LEFT_PAR callArgList ')' {
+		std::string indentPart($1);
+		indentPart.pop_back(); // Remove '('
+		$$ = new CallFunction(@$,
+			sptOf<Ident>(new Ident(locLeft(@1, indentPart.size()), indentPart)),
+			sptOf<CallParamList>($2)
+		);
+	}
+	| RETURN expr { $$ = new ReturnVal(@$, sptOf<Expr>($2)); }
+	| RETURN { $$ = new ReturnVal(@$, nullptr); }
+	| binOpRule   { $$ = $1; }
+	| unaryOpRule { $$ = $1; }
+	| lvalue '=' expr {
+		$$ = new Assignment(@$, sptOf<LValue>($1), sptOf<Expr>($3));
+	}
+
+	// Flow control
+	| FOR IDENT '=' expr ':' expr exprBlock END {
+		$$ = new FlowFor(@$, sptOf<Ident>(new Ident(@2, $2)), sptOf<Expr>($4),
+			sptOf<Expr>($6), sptOf<ExprBlock>($7));
+	}
+	| WHILE expr exprBlock END {
+		$$ = new FlowWhile(@$, sptOf<Expr>($2), sptOf<ExprBlock>($3));
+	}
+	| IF expr exprBlock elseRule {
+		$$ = new FlowIfElse(@$, sptOf<Expr>($2), sptOf<Expr>($3), sptOf<Expr>($4));
+	}
+;
+
+binOpRule:
+	  expr '<' expr            { $$ = newOp(@$, OpLower, $1, $3);   }
+	| expr '>' expr            { $$ = newOp(@$, OpGreater, $1, $3); }
+	| expr '+' expr            { $$ = newOp(@$, OpPlus, $1, $3);    }
+	| expr '-' expr            { $$ = newOp(@$, OpMinus, $1, $3);   }
+	| expr '*' expr            { $$ = newOp(@$, OpTimes, $1, $3);   }
+	| expr '%' expr            { $$ = newOp(@$, OpMod, $1, $3);     }
+	| expr '^' expr            { $$ = newOp(@$, OpPower, $1, $3);   }
+	| expr OP_EQ expr          { $$ = newOp(@$, OpEq, $1, $3);      }
+	| expr OP_NEQ expr         { $$ = newOp(@$, OpNotEq, $1, $3);   }
+	| expr OP_LOWER_EQ expr    { $$ = newOp(@$, OpLowerEq, $1, $3); }
+	| expr OP_GREATER_EQ expr  { $$ = newOp(@$, OpGreater, $1, $3); }
+	| expr OP_AND expr         { $$ = newOp(@$, OpAnd, $1, $3);     }
+	| expr OP_OR expr          { $$ = newOp(@$, OpAnd, $1, $3);     }
+;
+
+unaryOpRule:
+	  '!' expr { $$ = newOp(@$, UnaryNot, $2);   }
+	| '-' expr { $$ = newOp(@$, UnaryMinus, $2); } %prec UANRY_MINUS
+;
+
+lvalue:
+	IDENT { $$ = new Ident(@1, $1); }
+	| expr '.' IDENT { $$ = new DotOp(@$, sptOf<Expr>($1), sptOf<Ident>(new Ident(@3, $3))); }
+;
+
+callArgListLeastOne:
+	expr { $$ = new CallParamList(@$); $$->add($1); }
+	| expr ',' callArgListLeastOne { $$ = $3; $$->add_front($1); }
+;
+callArgList:
+	%empty { $$ = new CallParamList(@$); }
+	| callArgListLeastOne { $$ = $1; }
+;
+
+elseRule:
+	  END                 { $$ = new ExprBlock(@$); } // Empty block
+	| ELSE exprBlock END  { $$ = $2; }
+	| ELSEIF expr exprBlock elseRule {
+		$$ = new FlowIfElse(@$, sptOf<Expr>($2), sptOf<Expr>($3), sptOf<Expr>($4));
+	}
+	| ELSE IF expr exprBlock elseRule END {
+		throw ParseError(@1, "syntax: use \"elseif\" instead of \"else if\"");
+	}
+;
+
+// TODO : types
+
+typeSpec:
+	  %empty          { $$ = new Ident(@$, "Any"); }
+	| TYPE_SPEC IDENT { $$ = new Ident(@2, $2);    }
+;
+argRule:
+	IDENT typeSpec { $$ = new Argument(@$, sptOf<Ident>(new Ident(@1, $1)), sptOf<Ident>($2)); }
+;
+
+// Structs
+structRule:
+	MUTABLE structDef { $$ = $2; $$->isMutable = true; }
+	| structDef       { $$ = $1; }
+;
+
+structDef:
+	STRUCT IDENT structArgs END {
+		$$ = new DefStruct(@$, false, sptOf<Ident>(new Ident(@2, $2)));
+		$$->members = *($3);
+		free($3);
+	}
+;
+
+structArgs:
+	%empty { $$ = new ArgumentList(); }
+	| ';' structArgs { $$ = $2; }
+	| argRule ';' structArgs {
+		$$ = $3;
+		$$->push_front(sptOf<Argument>($1));
+	}
+	| argRule {
+		$$ = new ArgumentList();;
+		$$->push_front(sptOf<Argument>($1));
+	}
+;
+
+// Functions
+funcRule:
+	FUNCTION IDENT_LEFT_PAR funcArgs ')' typeSpec exprBlock END {
+		std::string name($2);
+		name.pop_back();
+		$$ = new DefFunc(@$, sptOf<Ident>(new Ident(locLeft(@2, name.size()), name)),
+			sptOf<Ident>($5), spt<ExprBlock>($6));
+		$$->args = *($3);
+		free($3);
+	}
+;
+funcArgs:
+	%empty { $$ = new ArgumentList(); }
+	| funcArgsLeastOne { $$ = $1; }
+;
+funcArgsLeastOne:
+	argRule ',' funcArgsLeastOne {
+		$$ = $3;
+		$$->push_front(sptOf<Argument>($1));
+	}
+	| argRule {
+		$$ = new ArgumentList();;
+		$$->push_front(sptOf<Argument>($1));
+	}
+;
+
 %%
 
-void yyerror(const char *s) {
-  std::cout << "Parse error!  Message: " << s << std::endl;
-  // might as well halt now:
-  exit(-1);
+void yyerror(Ast*, const char *s) {
+	throw ParseError(yylloc, "[bison error] " + std::string(s));
 }

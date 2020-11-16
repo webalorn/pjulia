@@ -1,5 +1,19 @@
 #include "util.hpp"
 
+/*
+	Locations
+*/
+
+// Split loc on first line
+YYLTYPE locLeft(YYLTYPE loc, int splitAt) {
+	loc.last_column = loc.first_column + splitAt - 1;
+	return loc;
+}
+YYLTYPE locRight(YYLTYPE loc, int splitAt) {
+	loc.first_column = loc.first_column += splitAt;
+	return loc;
+}
+
 std::string locToString(const YYLTYPE& loc) {
 	std::string strLoc = "";
 	if (loc.first_line != loc.last_line) {
@@ -23,16 +37,21 @@ std::string locToString(const YYLTYPE& loc) {
 	Exceptions
 */
 
-const char* PJuliaError::what() const throw() { // TODO
+const char* PJuliaBaseError::what() const throw() { // TODO
 	return get().c_str();
 }
-std::string PJuliaError::bashFormat() const {
+std::string PJuliaBaseError::bashFormat() const {
 	return "\e[31m";
 }
-void PJuliaError::giveContext(std::string fname) {
+void PJuliaBaseError::giveContext(std::string fname) {
 	ctxFileName = fname;
 }
 
+
+PJuliaError::PJuliaError(const std::string str) : str(str) {};
+std::string PJuliaError::get() const {
+	return "Error: " + str + "\n";
+}
 
 UsageError::UsageError(const std::string str) : str(str) {};
 std::string UsageError::get() const {
@@ -47,17 +66,21 @@ LocalizedError::LocalizedError(const YYLTYPE loc) : loc(loc) {}
 
 
 SyntaxError::SyntaxError(const YYLTYPE loc, const std::string str) : LocalizedError(loc), str(str) {};
-
 std::string SyntaxError::errorBody() const {
 	return "Syntax error: unexpected string near \"" + str + "\"\n";
+}
+
+ParseError::ParseError(const YYLTYPE loc, const std::string str) : LocalizedError(loc), str(str) {};
+std::string ParseError::errorBody() const {
+	return "Parse error: " + str + "\n";
 }
 
 /*
 	Argument parsing
 */
 
-Argument::Argument(const std::string name, const bool optional) : name(name), optional(optional) {}
-std::string Argument::get() {
+CmdArgument::CmdArgument(const std::string name, const bool optional) : name(name), optional(optional) {}
+std::string CmdArgument::get() {
 	return value;
 }
 
@@ -68,8 +91,8 @@ std::shared_ptr<bool> ArgParser::addFlag(std::string name) {
 	}
 	return flags[name];
 }
-std::shared_ptr<Argument> ArgParser::newPositional(std::string name, bool optional) {
-	std::shared_ptr<Argument> arg(new Argument(name, optional));
+std::shared_ptr<CmdArgument> ArgParser::newPositional(std::string name, bool optional) {
+	std::shared_ptr<CmdArgument> arg(new CmdArgument(name, optional));
 	posiArgs.push_back(arg);
 	return arg;
 }
