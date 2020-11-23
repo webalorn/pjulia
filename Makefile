@@ -5,7 +5,7 @@ SRC_DIR=src
 SRCS=$(shell find src -type f -name '*.cpp')
 OBJS=$(subst .cpp,.o,$(SRCS))
 
-all: pjulia
+all: pjuliac
 
 src/parser.tab.cpp: src/parser.ypp # Bison parser
 	bison -o src/parser.tab.cpp -d src/parser.ypp
@@ -18,8 +18,8 @@ fbison: src/parser.tab.cpp src/lex.yy.cpp
 %.o: %.cpp
 	$(CXX) $(CPPFLAGS) -c -o $@ $<
 
-pjulia: $(OBJS)
-	$(CXX) $(LDFLAGS) -o pjulia $(OBJS)
+pjuliac: $(OBJS)
+	$(CXX) $(LDFLAGS) -o pjuliac $(OBJS)
 
 clean:
-	rm $(OBJS) pjulia src/lex.yy.cpp src/parser.tab.cpp src/parser.tab.hpp
+	rm $(OBJS) pjuliac src/lex.yy.cpp src/parser.tab.cpp src/parser.tab.hpp

@@ -10,6 +10,8 @@
 #include <iostream>   
 #include "parser.tab.hpp"
 
+extern bool strictTypeMode;
+
 #define spt std::shared_ptr
 // Inline converter
 template<class T> inline std::shared_ptr<T> sptOf(T* pt) {
@@ -42,14 +44,16 @@ public:
 	virtual std::string get() const = 0;
 	virtual std::string bashFormat() const;
 	void giveContext(std::string);
+	virtual int errorCode();
 };
 
-class PJuliaError : public PJuliaBaseError {
+class PJuliaError : public PJuliaBaseError { // Compiler error
 protected:
 	std::string str;
 public:
 	PJuliaError(const std::string str);
 	std::string get() const;
+	virtual int errorCode();
 };
 
 class UsageError : public PJuliaBaseError {
@@ -58,6 +62,7 @@ protected:
 public:
 	UsageError(const std::string str);
 	std::string get() const;
+	virtual int errorCode();
 };
 
 class LocalizedError : public PJuliaBaseError {

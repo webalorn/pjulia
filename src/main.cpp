@@ -35,12 +35,17 @@ int main(int argc, char** argv) {
 		}
 
 		/* Set types */
+		strictTypeMode = !(*fTypeOnly);
 		ast.initEnvTypes();
+
+		if (*fTypeOnly) {
+			return 0;
+		}
 		// std::cout << ast;
 	}
 	catch (PJuliaBaseError& e) {
 		e.giveContext(filename);
 		std::cerr << "\n" << e.bashFormat() << e.get() << "\e[0m";
-		return 1;
+		return e.errorCode();
 	}
 }

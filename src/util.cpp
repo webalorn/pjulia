@@ -1,5 +1,7 @@
 #include "util.hpp"
 
+bool strictTypeMode = true;
+
 /*
 	Locations
 */
@@ -37,7 +39,7 @@ std::string locToString(const YYLTYPE& loc) {
 	Exceptions
 */
 
-const char* PJuliaBaseError::what() const throw() { // TODO
+const char* PJuliaBaseError::what() const throw() {
 	return get().c_str();
 }
 std::string PJuliaBaseError::bashFormat() const {
@@ -46,17 +48,26 @@ std::string PJuliaBaseError::bashFormat() const {
 void PJuliaBaseError::giveContext(std::string fname) {
 	ctxFileName = fname;
 }
+int PJuliaBaseError::errorCode() {
+	return 1;
+};
 
 
 PJuliaError::PJuliaError(const std::string str) : str(str) {};
 std::string PJuliaError::get() const {
 	return "Error: " + str + "\n";
 }
+int PJuliaError::errorCode() {
+	return 2;
+};
 
 UsageError::UsageError(const std::string str) : str(str) {};
 std::string UsageError::get() const {
 	return "Usage error: " + str + "\n";
 }
+int UsageError::errorCode() {
+	return 2;
+};
 
 std::string LocalizedError::get() const {
 	return "File \"" + ctxFileName + "\", " + locToString(loc) + ":\n" + errorBody();

@@ -1,15 +1,19 @@
 #include "ast.hpp"
+#include "builtins.hpp"
 
 /*
 	Environment
 */
 spt<Ident> identAny;
 
-Env::Env(spt<Env> from) : from(from) {}
+Env::Env(spt<Env> fromVal) : from(fromVal) {
+	if (from) {
+		inFunction = from->inFunction;
+	}
+}
 
 spt<Env> Env::child() {
-	// return sptOf(new Env(sptOf(this)));
-	return shared_from_this();
+	return sptOf(new Env(shared_from_this()));
 }
 
 bool Env::isNameDefined(spt<Ident> name) {
@@ -23,7 +27,49 @@ void Env::add(spt<Ident> name, spt<Declaration> decl) {
 	if (isNameLocal(name)) {
 		throw JError(name->loc, "The identifier " + name->val + " is already defined");
 	}
+	auto strPtr = std::dynamic_pointer_cast<DefStruct>(decl);
+	if (strPtr) {
+		for (auto m : strPtr->members) {
+			std::string name = m->name->val;
+			if (membersToStr.count(name)) {
+				membersToStr[name] = {};
+			}
+			membersToStr[name].push_back(strPtr);
+		}
+	}
+
 	declarations[name->val] = decl;
+}
+std::vector<spt<DefStruct>> Env::structsWith(spt<Ident> name) {
+	if (!from) {
+		if (membersToStr.count(name->val)) {
+			return membersToStr[name->val];
+		}
+		return {};
+	}
+	return from->structsWith(name);
+}
+void Env::declFunction(spt<Ident> name, spt<DefFunc> decl) {
+	if (isNameLocal(name)) {
+		auto prevDecl = getDeclaration(name);
+		auto funcPt = std::dynamic_pointer_cast<DefFunc>(prevDecl);
+		auto dispatchPt = std::dynamic_pointer_cast<FuncDispacher>(prevDecl);
+		if (funcPt) {
+			dispatchPt = sptOf(new FuncDispacher());
+			dispatchPt->functions.push_back(funcPt);
+			dispatchPt->env = shared_from_this();
+			declarations[name->val] = dispatchPt;
+		}
+		if (dispatchPt) {
+			dispatchPt->functions.push_back(decl);
+		}
+		else {
+			throw JError(name->loc, "The identifier " + name->val + " is already defined and can't be used for a new function");
+		}
+	}
+	else {
+		add(name, decl);
+	}
 }
 spt<Declaration> Env::getDeclaration(spt<Ident> name) {
 	if (!isNameLocal(name)) {
@@ -72,9 +118,12 @@ spt<Ident> Env::getInitialVar(spt<Ident> name) {
 	}
 	return pt;
 }
-spt<Ident> Env::getOrCreateVar(spt<Ident> name) {
+spt<Ident> Env::getOrCreateVar(spt<Ident> name, bool force) {
 	if (!isNameLocal(name)) {
 		declarations[name->val] = name;
+	}
+	else if (force) {
+		throw JError(name->loc, "Duplicate identifier: " + name->val);
 	}
 	return getInitialVar(name);
 }
@@ -92,6 +141,10 @@ Ast::Ast() : env(new Env()) {
 	declarations.push_back(sptOf(new BaseType("Bool", TBool)));
 	declarations.push_back(sptOf(new BaseType("String", TString)));
 
+	declarations.push_back(sptOf(new BuiltinPrint()));
+	declarations.push_back(sptOf(new BuiltinPrintLn()));
+	declarations.push_back(sptOf(new BuiltinDiv()));
+
 	identAny = typeAny->name;
 	spt<Ident> mainIdent = sptOf(new Ident(NO_LOC, "@main"));
 
@@ -104,6 +157,7 @@ Ast::Ast() : env(new Env()) {
 		sptOf(new Ident(NO_LOC, "nothing")),
 		sptOf(new Ident(NO_LOC, "Nothing"))
 	)));
+	mainFunc->args[0]->name->isMutable = false;
 	mainFunc->isMain = true;
 	declarations.push_back(mainFunc);
 }
@@ -127,15 +181,18 @@ void Ast::addDeclaration(spt<Declaration> decl) {
 	Expressions
 */
 
-void Expr::mergeType(spt<Type> type2) {
+spt<Type> mergeTypes(spt<Type> type1, spt<Type> type2, spt<Env> env) {
 	if (type2) {
-		if (type && type->name->val != type2->name->val) {
-			type = env->getType(identAny);
+		if (type1 && type1->name->val != type2->name->val) {
+			return env->getType("Any");
 		}
-		else {
-			type = type2;
-		}
+		return type2;
 	}
+	return type1;
+}
+
+void Expr::mergeType(spt<Type> type2) {
+	type = mergeTypes(type, type2, env);
 }
 
 BaseType::BaseType(std::string str_name, PrimitiveType type) :
@@ -204,19 +261,6 @@ bool typesMatch(spt<Type> type1, spt<Type> type2) {
 	return type1->name == type2->name;
 }
 
-std::string typeNameOf(spt<Type> tp) { return tp->name->val; }
-std::string typeNameOf(spt<Argument> tp) { return tp->typeName->val; }
-template<class T>
-std::string typesToSig(T args) {
-	std::stringstream sig;
-	sig << "(";
-	for (int iArg = 0; iArg < (int)args.size(); iArg++) {
-		if (iArg) sig << ", ";
-		sig << "::" << typeNameOf(args[iArg]);
-	}
-	sig << ")";
-	return sig.str();
-}
 std::string DefFunc::getSignature() {
 	return name->val + typesToSig(args);
 }
@@ -258,6 +302,120 @@ void DefStruct::checkCallArgs(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes) 
 		throw JError(atLoc, typesToSig(callTypes) + " doesn't match the structure members " + getSignature());
 	}
 }
+
+// Dispacher
+
+spt<Type> FuncDispacher::getReturnType() {
+	if (!returnType) {
+		returnType = functions[0]->getReturnType();
+		for (auto& f : functions) {
+			returnType = mergeTypes(returnType, f->getReturnType(), env);
+		}
+	}
+	return returnType;
+}
+bool FuncDispacher::matchArgs(std::vector<spt<Type>>& callTypes) {
+	for (auto& f : functions) {
+		if (f->matchArgs(callTypes)) {
+			return true;
+		}
+	}
+	return false;
+}
+void FuncDispacher::checkCallArgs(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes) {
+	if (!matchArgs(callTypes)) {
+		throw JError(atLoc, functions[0]->name->val + typesToSig(callTypes) + " doesn't match any overload of \"" + functions[0]->name->val + "\" function");
+	}
+}
+
+void FuncDispacher::checkAmbiguous() {
+	for (int i = 0; i < (int)functions.size(); i++) {
+		for (int j = i + 1; j < (int)functions.size(); j++) {
+			bool isAmbiguous = true;
+			if (functions[i]->args.size() != functions[j]->args.size()) {
+				continue;
+			}
+			for (int iArg = 0; iArg < (int)functions[i]->args.size(); iArg++) {
+				if (functions[i]->args[iArg]->argType->name !=
+					functions[j]->args[iArg]->argType->name) {
+					isAmbiguous = false;
+					break;
+				}
+			}
+			if (isAmbiguous) {
+				throw JError(functions[j]->loc, "Definition of " + functions[j]->getSignature() + " has the same signature as a previous declaration (" + functions[i]->getSignature() + ")");
+			}
+		}
+	}
+}
+
+spt<Callable> FuncDispacher::tryPreDispatch(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes) {
+	// std::vector<spt<DefFunc>> funcMatch;
+	// for (auto& f : functions) {
+	// 	if (f->matchArgs(callTypes)) {
+	// 		funcMatch.push_back(f);
+	// 	}
+	// }
+	// for (int i = 0; i < (int)funcMatch.size(); i++) {
+	// 	for (int j = i + 1; j < (int)funcMatch.size(); j++) {
+	// 		bool isAmbiguous = true;
+	// 		for (int iArg = 0; iArg < (int)callTypes.size(); iArg++) {
+	// 			bool dismatch = funcMatch[i]->args[iArg]->argType->name !=
+	// 				funcMatch[j]->args[iArg]->argType->name;
+	// 			bool canBeSolved = callTypes[iArg]->name->val == "Any";
+	// 			if (dismatch && canBeSolved) {
+	// 				isAmbiguous = false;
+	// 				break;
+	// 			}
+	// 		}
+	// 		if (isAmbiguous) {
+	// 			throw JError(atLoc, "Call to " + functions[0]->name->val + typesToSig(callTypes) + " is ambiguous");
+	// 		}
+	// 	}
+	// }
+	// return shared_as<FuncDispacher>();
+
+	std::vector<spt<DefFunc>> funcMatch;
+	for (auto& f : functions) {
+		if (f->matchArgs(callTypes)) {
+			funcMatch.push_back(f);
+		}
+	}
+	for (int iArg = 0; iArg < (int)callTypes.size(); iArg++) {
+		if (callTypes[iArg]->name->val == "Any") {
+			return shared_as<FuncDispacher>();
+		}
+	}
+
+	bool isAmbiguous = false;
+	int bestScore = -1;
+	spt<DefFunc> match;
+
+	for (auto& f : functions) {
+		if (f->matchArgs(callTypes)) {
+			int score = 0;
+			for (int iArg = 0; iArg < (int)callTypes.size(); iArg++) {
+				if (callTypes[iArg]->name->val != "Any"
+					&& callTypes[iArg]->name->val == f->args[iArg]->typeName->val) {
+					score += 1;
+				}
+			}
+			if (score > bestScore) {
+				bestScore = score;
+				isAmbiguous = false;
+				match = f;
+			}
+			else if (score == bestScore) {
+				isAmbiguous = true;
+			}
+		}
+	}
+	if (isAmbiguous) {
+		throw JError(atLoc, "Call to " + match->name->val + typesToSig(callTypes) + " is ambiguous");
+	}
+	return match;
+}
+
 
 /*
 	Show the AST
@@ -319,6 +477,15 @@ std::ostream& operator<<(std::ostream& os, UnaryOperation op) {
 	return os;
 }
 
+void showType(std::ostream& os, spt<Type> type) {
+	if (type) {
+		os << ":>" << type->name->val;
+	}
+	else {
+		os << ":>[X]";
+	}
+}
+
 
 
 void ExprBlock::show(std::ostream& os) const {
@@ -328,45 +495,45 @@ void ExprBlock::show(std::ostream& os) const {
 		os << " ;\n";
 	}
 	os << "])";
-	// os << ":>" << type;
+	// showType(os, type);
 }
 void BaseType::show(std::ostream& os) const {
 	os << type;
 }
 void Ident::show(std::ostream& os) const {
 	os << val;
-	os << ":>" << type;
+	showType(os, type);
 	// os << "{" << loc.first_column << "-" << loc.last_column << "|" << loc.first_line << "}";
 }
 void IntConst::show(std::ostream& os) const {
 	os << value;
-	os << ":>" << type;
+	showType(os, type);
 	// os << "{" << loc.first_column << "-" << loc.last_column << "|" << loc.first_line << "}";
 }
 void Assignment::show(std::ostream& os) const {
 	os << "(" << lvalue << " = " << rvalue << ")";
-	os << ":>" << type;
+	showType(os, type);
 	// os << "{" << loc.first_column << "-" << loc.last_column << "|" << loc.first_line << "}";
 }
 void StrConst::show(std::ostream& os) const {
 	os << '"' << value << '"';
-	os << ":>" << type;
+	showType(os, type);
 }
 void BoolConst::show(std::ostream& os) const {
 	os << (value ? std::string("true") : std::string("false"));
-	os << ":>" << type;
+	showType(os, type);
 }
 void BinOp::show(std::ostream& os) const {
 	os << "(" << left << ' ' << op << ' ' << right << ")";
-	os << ":>" << type;
+	showType(os, type);
 }
 void UnaryOp::show(std::ostream& os) const {
 	os << "(" << op << " " << expr << ")";
-	os << ":>" << type;
+	showType(os, type);
 }
 void DotOp::show(std::ostream& os) const {
 	os << "(" << object << "." << member << ")";
-	os << ":>" << type;
+	showType(os, type);
 }
 
 
@@ -377,11 +544,11 @@ void CallParamList::show(std::ostream& os) const {
 		prev = true;
 		exp->show(os);
 	}
-	// os << ":>" << type;
+	// showType(os, type);
 }
 void CallFunction::show(std::ostream& os) const {
 	os << funcName->val << "(" << args << ")";
-	os << ":>" << type;
+	showType(os, type);
 }
 void ReturnVal::show(std::ostream& os) const {
 	if (value) {
@@ -390,22 +557,22 @@ void ReturnVal::show(std::ostream& os) const {
 	else {
 		os << "return [Nothing]";
 	}
-	os << ":>" << type;
+	showType(os, type);
 }
 void FlowFor::show(std::ostream& os) const {
 	os << "for " << counter << " = " << startAt << " : " << endAt << "\n";
 	os << body << "\nend\n";
-	os << ":>" << type;
+	showType(os, type);
 }
 void FlowWhile::show(std::ostream& os) const {
 	os << "while " << condition << "\n";
 	os << body << "\nend\n";
-	os << ":>" << type;
+	showType(os, type);
 }
 void FlowIfElse::show(std::ostream& os) const {
 	os << "if " << condition << "\n";
 	os << ifTrue << "\nelse\n" << ifFalse << "\nend\n";
-	os << ":>" << type;
+	showType(os, type);
 }
 
 
@@ -423,4 +590,9 @@ void DefFunc::show(std::ostream& os) const {
 	for (auto arg : args) os << arg << ", ";
 	os << ") :: " << returnType << "\n";
 	os << body << "\nend\n";
+}
+void FuncDispacher::show(std::ostream& os) const {
+	for (auto& f : functions) {
+		os << f;
+	}
 }

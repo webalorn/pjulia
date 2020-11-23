@@ -567,9 +567,9 @@ static const yytype_int16 yyrline[] =
      165,   176,   185,   186,   193,   202,   203,   204,   205,   209,
      219,   224,   227,   233,   234,   235,   236,   237,   238,   239,
      240,   241,   242,   243,   244,   245,   249,   250,   254,   255,
-     262,   263,   266,   267,   271,   272,   273,   276,   284,   285,
-     288,   296,   297,   301,   309,   310,   311,   315,   323,   333,
-     334,   337,   341
+     262,   263,   266,   267,   271,   272,   273,   276,   282,   283,
+     286,   294,   295,   299,   307,   308,   309,   313,   321,   331,
+     332,   335,   339
 };
 #endif
 
@@ -2018,19 +2018,19 @@ yyreduce:
     break;
 
   case 58: /* typeSpec: %empty  */
-#line 284 "src/parser.ypp"
+#line 282 "src/parser.ypp"
                              { (yyval.astIdent) = new Ident((yyloc), "Any");        }
 #line 2024 "src/parser.tab.cpp"
     break;
 
   case 59: /* typeSpec: TYPE_SPEC IDENT  */
-#line 285 "src/parser.ypp"
+#line 283 "src/parser.ypp"
                              { (yyval.astIdent) = new Ident((yylsp[0]), (yyvsp[0].repr)); free((yyvsp[0].repr)); }
 #line 2030 "src/parser.tab.cpp"
     break;
 
   case 60: /* argRule: IDENT typeSpec  */
-#line 288 "src/parser.ypp"
+#line 286 "src/parser.ypp"
                        {
 		(yyval.astArgument) = new Argument((yyloc), sptOf(new Ident((yylsp[-1]), (yyvsp[-1].repr))), sptOf((yyvsp[0].astIdent)));
 		free((yyvsp[-1].repr));
@@ -2039,19 +2039,19 @@ yyreduce:
     break;
 
   case 61: /* structRule: MUTABLE structDef  */
-#line 296 "src/parser.ypp"
+#line 294 "src/parser.ypp"
                           { (yyval.astStructDef) = (yyvsp[0].astStructDef); (yyval.astStructDef)->isMutable = true; }
 #line 2045 "src/parser.tab.cpp"
     break;
 
   case 62: /* structRule: structDef  */
-#line 297 "src/parser.ypp"
+#line 295 "src/parser.ypp"
                           { (yyval.astStructDef) = (yyvsp[0].astStructDef); }
 #line 2051 "src/parser.tab.cpp"
     break;
 
   case 63: /* structDef: STRUCT IDENT structArgs END  */
-#line 301 "src/parser.ypp"
+#line 299 "src/parser.ypp"
                                     {
 		(yyval.astStructDef) = new DefStruct((yyloc), false, sptOf(new Ident((yylsp[-2]), (yyvsp[-2].repr))));
 		(yyval.astStructDef)->members = *((yyvsp[-1].astArgList));
@@ -2061,19 +2061,19 @@ yyreduce:
     break;
 
   case 64: /* structArgs: %empty  */
-#line 309 "src/parser.ypp"
+#line 307 "src/parser.ypp"
                            { (yyval.astArgList) = new ArgumentList(); }
 #line 2067 "src/parser.tab.cpp"
     break;
 
   case 65: /* structArgs: ';' structArgs  */
-#line 310 "src/parser.ypp"
+#line 308 "src/parser.ypp"
                            { (yyval.astArgList) = (yyvsp[0].astArgList); }
 #line 2073 "src/parser.tab.cpp"
     break;
 
   case 66: /* structArgs: argRule ';' structArgs  */
-#line 311 "src/parser.ypp"
+#line 309 "src/parser.ypp"
                                  {
 		(yyval.astArgList) = (yyvsp[0].astArgList);
 		(yyval.astArgList)->push_front(sptOf((yyvsp[-2].astArgument)));
@@ -2082,7 +2082,7 @@ yyreduce:
     break;
 
   case 67: /* structArgs: argRule  */
-#line 315 "src/parser.ypp"
+#line 313 "src/parser.ypp"
                   {
 		(yyval.astArgList) = new ArgumentList();;
 		(yyval.astArgList)->push_front(sptOf((yyvsp[0].astArgument)));
@@ -2091,7 +2091,7 @@ yyreduce:
     break;
 
   case 68: /* funcRule: FUNCTION IDENT_LEFT_PAR funcArgs ')' typeSpec exprBlock END  */
-#line 323 "src/parser.ypp"
+#line 321 "src/parser.ypp"
                                                                     {
 		std::string name((yyvsp[-5].repr));
 		name.pop_back();
@@ -2104,19 +2104,19 @@ yyreduce:
     break;
 
   case 69: /* funcArgs: %empty  */
-#line 333 "src/parser.ypp"
+#line 331 "src/parser.ypp"
                            { (yyval.astArgList) = new ArgumentList(); }
 #line 2110 "src/parser.tab.cpp"
     break;
 
   case 70: /* funcArgs: funcArgsLeastOne  */
-#line 334 "src/parser.ypp"
+#line 332 "src/parser.ypp"
                            { (yyval.astArgList) = (yyvsp[0].astArgList); }
 #line 2116 "src/parser.tab.cpp"
     break;
 
   case 71: /* funcArgsLeastOne: argRule ',' funcArgsLeastOne  */
-#line 337 "src/parser.ypp"
+#line 335 "src/parser.ypp"
                                      {
 		(yyval.astArgList) = (yyvsp[0].astArgList);
 		(yyval.astArgList)->push_front(sptOf((yyvsp[-2].astArgument)));
@@ -2125,7 +2125,7 @@ yyreduce:
     break;
 
   case 72: /* funcArgsLeastOne: argRule  */
-#line 341 "src/parser.ypp"
+#line 339 "src/parser.ypp"
                   {
 		(yyval.astArgList) = new ArgumentList();;
 		(yyval.astArgList)->push_front(sptOf((yyvsp[0].astArgument)));
@@ -2364,7 +2364,7 @@ yyreturn:
   return yyresult;
 }
 
-#line 347 "src/parser.ypp"
+#line 345 "src/parser.ypp"
 
 
 void yyerror(Ast*, const char *s) {

@@ -90,7 +90,7 @@ void Argument::initEnv(spt<Env> parentEnv) {
 	env = parentEnv;
 	name->initEnv(env);
 	typeName->initEnv(env);
-	env->getOrCreateVar(name);
+	env->getOrCreateVar(name, true);
 }
 void DefStruct::initEnv(spt<Env> parentEnv) {
 	name->initEnv(parentEnv);
@@ -99,11 +99,14 @@ void DefStruct::initEnv(spt<Env> parentEnv) {
 	env = parentEnv->child();
 	for (auto member : members) {
 		member->initEnv(env);
+		// Because struct must reference only previously defined structs
+		member->argType = env->getType(member->typeName);
 	}
 }
 void DefFunc::initEnv(spt<Env> parentEnv) {
-	parentEnv->add(name, shared_as<DefFunc>());
+	parentEnv->declFunction(name, shared_as<DefFunc>());
 	env = isMain ? parentEnv : parentEnv->child();
+	env->inFunction = shared_as<DefFunc>();
 
 	for (auto arg : args) {
 		arg->initEnv(env);
@@ -111,6 +114,13 @@ void DefFunc::initEnv(spt<Env> parentEnv) {
 	name->initEnv(env);
 	typeName->initEnv(env);
 	body->initEnv(env);
+}
+void FuncDispacher::initEnv(spt<Env>) {
+	// env = parentEnv;
+	// for (auto& f : functions) {
+	// 	f->initEnv(env);
+	// }
+	throw JError(NO_LOC, "[INTERNAL FuncDispacher::initEnv]");
 }
 
 /*
@@ -125,7 +135,7 @@ void setRefered(spt<T> node, bool setInitIdent = false) {
 		if (setInitIdent) {
 			ptRefIdent->initialized = true;
 		}
-		else if (!ptRefIdent->initialized) {
+		else if (!ptRefIdent->initialized && strictTypeMode) {
 			throw JError(node->loc, ptRefIdent->val + " accessed before being initialized");
 		}
 		ident->setAt = ptRefIdent;
@@ -173,7 +183,7 @@ void ReturnVal::refIdents() {
 	setRefered(value);
 }
 void FlowFor::refIdents() {
-	setRefered(counter);
+	setRefered(counter, true);
 	setRefered(startAt);
 	setRefered(endAt);
 	setRefered(body);
@@ -204,28 +214,8 @@ void DefFunc::refIdents() {
 	returnType = env->getType(typeName);
 	setRefered(body);
 }
-
-// TODO : mark variables as built, exception if referred but not built
-
-
-// void ExprBlock::func_name(arg_names) {}
-// void BaseType::func_name(arg_names) {}
-// void Ident::func_name(arg_names) {}
-// void IntConst::func_name(arg_names) {}
-// void Assignment::func_name(arg_names) {}
-// void StrConst::func_name(arg_names) {}
-// void BoolConst::func_name(arg_names) {}
-// void BinOp::func_name(arg_names) {}
-// void UnaryOp::func_name(arg_names) {}
-// void DotOp::func_name(arg_names) {}
-
-// void CallParamList::func_name(arg_names) {}
-// void CallFunction::func_name(arg_names) {}
-// void ReturnVal::func_name(arg_names) {}
-// void FlowFor::func_name(arg_names) {}
-// void FlowWhile::func_name(arg_names) {}
-// void FlowIfElse::func_name(arg_names) {}
-
-// void Argument::func_name(arg_names) {}
-// void DefStruct::func_name(arg_names) {}
-// void DefFunc::func_name(arg_names) {}
+void FuncDispacher::refIdents() {
+	for (auto& f : functions) {
+		setRefered(f);
+	}
+}

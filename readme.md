@@ -6,13 +6,13 @@ Projet de compilation.
 
 ```bash
 make fbison # Optinal, only if lexer.lpp or parser.ypp changed
-make pjulia
+make
 ```
 
 ## Usage
 
 ```bash
-pjulia path/to/file.jl
+pjuliac path/to/file.jl
 
-pjulia [--parse-only] [--type-only] <path_to_julia_file>
+pjuliac [--parse-only] [--type-only] <path_to_julia_file>
 ```

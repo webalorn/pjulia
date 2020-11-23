@@ -278,8 +278,6 @@ elseRule:
 	}
 ;
 
-// TODO : types
-
 typeSpec:
 	  %empty %prec EMPTY { $$ = new Ident(@$, "Any");        }
 	| TYPE_SPEC IDENT    { $$ = new Ident(@2, $2); free($2); }

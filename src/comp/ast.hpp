@@ -47,14 +47,17 @@ class Ast;
 class Env : public std::enable_shared_from_this<Env> {
 protected:
 	std::map<std::string, spt<Declaration>> declarations;
+	std::map<std::string, std::vector<spt<DefStruct>>> membersToStr;
 	spt<Env> from;
 public:
+	spt<DefFunc> inFunction;
 	Env(spt<Env> from = nullptr);
 	spt<Env> child();
 
 	bool isNameDefined(spt<Ident> name);
 	bool isNameLocal(spt<Ident> name);
 	void add(spt<Ident> name, spt<Declaration> decl);
+	void declFunction(spt<Ident> name, spt<DefFunc> decl);
 	spt<Declaration> getDeclaration(spt<Ident> name);
 	spt<DefFunc> getFunction(spt<Ident> name);
 	spt<Callable> getCallable(spt<Ident> name);
@@ -62,7 +65,9 @@ public:
 	spt<Type> getType(spt<Ident> name);
 	spt<Type> getType(std::string name);
 	spt<Ident> getInitialVar(spt<Ident> name);
-	spt<Ident> getOrCreateVar(spt<Ident> name);
+	spt<Ident> getOrCreateVar(spt<Ident> name, bool force = false);
+
+	std::vector<spt<DefStruct>> structsWith(spt<Ident> name);
 
 	friend class Ast;
 };
@@ -166,9 +171,11 @@ struct Ident : public LValue {
 	std::string val;
 	spt<Ident> setAt; // For a variable
 	bool initialized;
+	bool isMutable;
 
 	inline Ident(const YYLTYPE loc, std::string val) : LValue(loc), val(val), setAt(nullptr) {
 		initialized = false;
+		isMutable = true;
 	};
 	FINAL_AST_NODE_CLS
 };
@@ -206,8 +213,9 @@ struct CallFunction : public Expr {
 };
 struct ReturnVal : public Expr {
 	spt<Expr> value;
-	inline ReturnVal(const YYLTYPE loc, spt<Expr> value) : Expr(loc), value(value) {
-		if (value == nullptr) {
+	inline ReturnVal(const YYLTYPE loc, spt<Expr> valuePt) : Expr(loc) {
+		value = valuePt;
+		if (!value) {
 			value = sptOf(new Ident(loc, "nothing"));
 		}
 	}
@@ -340,5 +348,38 @@ struct DefFunc : public Declaration, public Callable {
 	FINAL_AST_NODE_CLS
 };
 
+struct FuncDispacher : public Declaration, public Callable {
+	spt<Type> returnType;
+	std::vector<spt<DefFunc>> functions;
+	inline FuncDispacher() : Declaration(NO_LOC), returnType(nullptr) {};
+
+	virtual spt<Type> getReturnType();
+	virtual bool matchArgs(std::vector<spt<Type>>& callTypes);
+	virtual void checkCallArgs(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes);
+	spt<Callable> tryPreDispatch(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes);
+	std::string getSignature();
+	void checkAmbiguous();
+
+	FINAL_AST_NODE_CLS
+};
+
+/*
+	Template functions & utility
+*/
+bool typesMatch(spt<Type> type1, spt<Type> type2);
+
+inline std::string typeNameOf(spt<Type> tp) { return tp->name->val; }
+inline std::string typeNameOf(spt<Argument> tp) { return tp->typeName->val; }
+
+template<class T> std::string typesToSig(T args) {
+	std::stringstream sig;
+	sig << "(";
+	for (int iArg = 0; iArg < (int)args.size(); iArg++) {
+		if (iArg) sig << ", ";
+		sig << "::" << typeNameOf(args[iArg]);
+	}
+	sig << ")";
+	return sig.str();
+}
 
 #endif // AST_HPP
