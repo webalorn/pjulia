@@ -22,8 +22,8 @@ int main(int argc, char** argv) {
 		yyin = file.c_file();
 		Ast ast;
 
+		/* Parse the code */
 		int parseCode = yyparse(&ast);
-
 		if (parseCode == 2) {
 			throw PJuliaError("Parsing failed due to memory exhaustion");
 		}
@@ -34,7 +34,9 @@ int main(int argc, char** argv) {
 			return 0;
 		}
 
-		std::cout << ast;
+		/* Set types */
+		ast.initEnvTypes();
+		// std::cout << ast;
 	}
 	catch (PJuliaBaseError& e) {
 		e.giveContext(filename);

@@ -6,7 +6,21 @@
 #include <map>
 #include <vector>
 #include <memory>
+#include <sstream>   
+#include <iostream>   
 #include "parser.tab.hpp"
+
+#define spt std::shared_ptr
+// Inline converter
+template<class T> inline std::shared_ptr<T> sptOf(T* pt) {
+	return std::shared_ptr<T>(pt);
+}
+
+template<class T> std::string asStr(const T& element) {
+	std::stringstream buffer;
+	buffer << element;
+	return buffer.str();
+}
 
 /*
 	Locations
@@ -69,6 +83,14 @@ protected:
 public:
 	std::string errorBody() const;
 	ParseError(const YYLTYPE loc, const std::string str);
+};
+
+class JError : public LocalizedError {
+protected:
+	std::string str;
+public:
+	std::string errorBody() const;
+	JError(const YYLTYPE loc, const std::string str);
 };
 
 /*

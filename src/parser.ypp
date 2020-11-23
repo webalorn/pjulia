@@ -33,18 +33,23 @@
 
 	void yyerror(Ast* ast, const char *s);
 
-	BinOp* newOp(const YYLTYPE loc, BinaryOperation op, AstNode* left, AstNode* right) {
-		return new BinOp(loc, op, sptOf<Expr>(left), sptOf<Expr>(right));
+	BinOp* newOp(const YYLTYPE loc, BinaryOperation op, Expr* left, Expr* right) {
+		return new BinOp(loc, op, sptOf(left), sptOf(right));
 	}
-	UnaryOp* newOp(const YYLTYPE loc, UnaryOperation op, AstNode* expr) {
-		return new UnaryOp(loc, op, sptOf<Expr>(expr));
+	UnaryOp* newOp(const YYLTYPE loc, UnaryOperation op, Expr* expr) {
+		return new UnaryOp(loc, op, sptOf(expr));
 	}
 %}
 %locations
 %parse-param {Ast *ast}
+// %define parse.lac full
+%define parse.error detailed
 
 %union {
+	// Input types
 	char *repr;
+
+	// Return types
 	AstNode* astNode;
 	Declaration* astDeclaration;
 	Expr* astExpr;
@@ -92,12 +97,20 @@
 %type <astFuncDef> funcRule
 
 // Precedence
+%precedence WITHOUT_OPTIO
+%precedence REDUCE_BLOCK_RULE
+%precedence FLOW_RULE
+%precedence RETURN_RULE
+
+%precedence EMPTY
+%right '='
 %left OP_AND OP_OR
 %nonassoc OP_LOWER_EQ OP_GREATER_EQ '<' '>' OP_EQ OP_NEQ
-%left '+' '-'
-%left '*' '%'
 %left UANRY_MINUS
+%left '+' '-'
 %left '!'
+%left '*' '%'
+%left '^'
 %left '.'
 
 %start prog_file
@@ -108,10 +121,10 @@ prog_file: prog END_FILE {};
 prog:
 	prog decl {
 		if ($2) {
-			ast->declarations.push_back(sptOf<Declaration>($2));
+			ast->addDeclaration(sptOf($2));
 		}
 	}
-	| %empty {}
+	| %empty %prec EMPTY {}
 ;
 
 // Expression, struct or function
@@ -128,23 +141,24 @@ maybeExpr:
 ;
 
 exprBlock:
-	%empty { $$ = new ExprBlock(@$); }
-	| ';' exprBlock { $$ = $2; $$->loc = @$; }
-	| exprBlocLeastOne { $$ = $1; $$->loc = @$; }
+	%empty %prec EMPTY                         { $$ = new ExprBlock(@$); }
+	| ';' exprBlock %prec REDUCE_BLOCK_RULE    { $$ = $2; $$->loc = @$; }
+	| exprBlocLeastOne %prec REDUCE_BLOCK_RULE { $$ = $1; $$->loc = @$; }
 ;
 exprBlocLeastOne:
-	expr { $$ = new ExprBlock(@$); $$->add($1); }
-	| expr ';' exprBlock { $$ = $3; $$->add_front($1); $$->loc = @$; }
+	expr %prec REDUCE_BLOCK_RULE { $$ = new ExprBlock(@$); $$->add($1); }
+	| expr  ';' exprBlock %prec REDUCE_BLOCK_RULE { $$ = $3; $$->add_front($1); $$->loc = @$; }
 ;
 
 expr:
 	lvalue { $$ = $1; }
-	| INT { $$ = new IntConst(@$, $1); }
+	| INT { $$ = new IntConst(@$, $1); free($1); }
 	| STRING {
 		std::string value($1); // Still need to remove ""
 		StrConst* s = new StrConst(@$, std::string($1, 1, value.size()-2));
 		s->convertSpecialChars();
 		$$ = s;
+		free($1);
 	}
 	| TRUE { $$ = new BoolConst(@$, true); }
 	| FALSE { $$ = new BoolConst(@$, false); }
@@ -154,51 +168,64 @@ expr:
 			splitPt++;
 		}
 		$$ = new BinOp(@$, OpTimes,
-			sptOf<Expr>(new IntConst(locLeft(@$, splitPt-$1), std::string($1, 0, splitPt-$1))),
-			sptOf<Expr>(new Ident(locRight(@$, splitPt-$1), std::string(splitPt)))
+			sptOf(new IntConst(locLeft(@$, splitPt-$1), std::string($1, 0, splitPt-$1))),
+			sptOf(new Ident(locRight(@$, splitPt-$1), std::string(splitPt)))
 		);
+		free($1);
 	}
 	| INT_LEFT_PAR exprBlocLeastOne ')' {
 		std::string intPart($1);
 		intPart.pop_back(); // Remove '('
 		$$ = new BinOp(@$, OpTimes,
-			sptOf<Expr>(new IntConst(locLeft(@1, intPart.size()), intPart)),
-			sptOf<Expr>($2)
+			sptOf(new IntConst(locLeft(@1, intPart.size()), intPart)),
+			sptOf($2)
 		);
+		free($1);
 	}
 	| '(' exprBlocLeastOne ')' { $$ = $2; }
 	| '(' expr RIGHT_PAR_IDENT {
 		$$ = new BinOp(@$, OpTimes,
-			sptOf<Expr>($2),
-			sptOf<Expr>(new Ident(locRight(@3, 1), std::string($3+1)))
+			sptOf($2),
+			sptOf(new Ident(locRight(@3, 1), std::string($3+1)))
 		);
+		free($3);
 	}
 	| IDENT_LEFT_PAR callArgList ')' {
 		std::string indentPart($1);
 		indentPart.pop_back(); // Remove '('
 		$$ = new CallFunction(@$,
-			sptOf<Ident>(new Ident(locLeft(@1, indentPart.size()), indentPart)),
-			sptOf<CallParamList>($2)
+			sptOf(new Ident(locLeft(@1, indentPart.size()), indentPart)),
+			sptOf($2)
 		);
+		free($1);
 	}
-	| RETURN expr { $$ = new ReturnVal(@$, sptOf<Expr>($2)); }
-	| RETURN { $$ = new ReturnVal(@$, nullptr); }
+	| RETURN expr %prec RETURN_RULE { $$ = new ReturnVal(@$, sptOf($2)); }
+	| RETURN %prec WITHOUT_OPTIO { $$ = new ReturnVal(@$, nullptr); }
 	| binOpRule   { $$ = $1; }
 	| unaryOpRule { $$ = $1; }
-	| lvalue '=' expr {
-		$$ = new Assignment(@$, sptOf<LValue>($1), sptOf<Expr>($3));
+	// | lvalue '=' expr {
+	// 	$$ = new Assignment(@$, sptOf($1), sptOf($3));
+	// }
+	| expr '=' expr { // Workaround because bison does strange things with %prec
+		LValue* lval = dynamic_cast<LValue*>($1);
+		if (lval == nullptr) {
+			throw ParseError(@2, "Can't assign to an expression");
+		} else {
+			$$ = new Assignment(@$, sptOf(lval), sptOf($3));
+		}
 	}
 
 	// Flow control
-	| FOR IDENT '=' expr ':' expr exprBlock END {
-		$$ = new FlowFor(@$, sptOf<Ident>(new Ident(@2, $2)), sptOf<Expr>($4),
-			sptOf<Expr>($6), sptOf<ExprBlock>($7));
+	| FOR IDENT '=' expr ':' expr exprBlock END %prec FLOW_RULE {
+		$$ = new FlowFor(@$, sptOf(new Ident(@2, $2)), sptOf($4),
+			sptOf($6), sptOf($7));
+		free($2);
 	}
-	| WHILE expr exprBlock END {
-		$$ = new FlowWhile(@$, sptOf<Expr>($2), sptOf<ExprBlock>($3));
+	| WHILE expr exprBlock END %prec FLOW_RULE {
+		$$ = new FlowWhile(@$, sptOf($2), sptOf($3));
 	}
-	| IF expr exprBlock elseRule {
-		$$ = new FlowIfElse(@$, sptOf<Expr>($2), sptOf<Expr>($3), sptOf<Expr>($4));
+	| IF expr exprBlock elseRule %prec FLOW_RULE {
+		$$ = new FlowIfElse(@$, sptOf($2), sptOf($3), sptOf($4));
 	}
 ;
 
@@ -220,12 +247,15 @@ binOpRule:
 
 unaryOpRule:
 	  '!' expr { $$ = newOp(@$, UnaryNot, $2);   }
-	| '-' expr { $$ = newOp(@$, UnaryMinus, $2); } %prec UANRY_MINUS
+	| '-' expr %prec UANRY_MINUS { $$ = newOp(@$, UnaryMinus, $2); }
 ;
 
 lvalue:
-	IDENT { $$ = new Ident(@1, $1); }
-	| expr '.' IDENT { $$ = new DotOp(@$, sptOf<Expr>($1), sptOf<Ident>(new Ident(@3, $3))); }
+	IDENT { $$ = new Ident(@1, $1); free($1); }
+	| expr '.' IDENT {
+		$$ = new DotOp(@$, sptOf($1), sptOf(new Ident(@3, $3)));
+		free($3);
+	}
 ;
 
 callArgListLeastOne:
@@ -233,7 +263,7 @@ callArgListLeastOne:
 	| expr ',' callArgListLeastOne { $$ = $3; $$->add_front($1); }
 ;
 callArgList:
-	%empty { $$ = new CallParamList(@$); }
+	%empty %prec EMPTY    { $$ = new CallParamList(@$); }
 	| callArgListLeastOne { $$ = $1; }
 ;
 
@@ -241,7 +271,7 @@ elseRule:
 	  END                 { $$ = new ExprBlock(@$); } // Empty block
 	| ELSE exprBlock END  { $$ = $2; }
 	| ELSEIF expr exprBlock elseRule {
-		$$ = new FlowIfElse(@$, sptOf<Expr>($2), sptOf<Expr>($3), sptOf<Expr>($4));
+		$$ = new FlowIfElse(@$, sptOf($2), sptOf($3), sptOf($4));
 	}
 	| ELSE IF expr exprBlock elseRule END {
 		throw ParseError(@1, "syntax: use \"elseif\" instead of \"else if\"");
@@ -251,11 +281,14 @@ elseRule:
 // TODO : types
 
 typeSpec:
-	  %empty          { $$ = new Ident(@$, "Any"); }
-	| TYPE_SPEC IDENT { $$ = new Ident(@2, $2);    }
+	  %empty %prec EMPTY { $$ = new Ident(@$, "Any");        }
+	| TYPE_SPEC IDENT    { $$ = new Ident(@2, $2); free($2); }
 ;
 argRule:
-	IDENT typeSpec { $$ = new Argument(@$, sptOf<Ident>(new Ident(@1, $1)), sptOf<Ident>($2)); }
+	IDENT typeSpec {
+		$$ = new Argument(@$, sptOf(new Ident(@1, $1)), sptOf($2));
+		free($1);
+	}
 ;
 
 // Structs
@@ -266,22 +299,22 @@ structRule:
 
 structDef:
 	STRUCT IDENT structArgs END {
-		$$ = new DefStruct(@$, false, sptOf<Ident>(new Ident(@2, $2)));
+		$$ = new DefStruct(@$, false, sptOf(new Ident(@2, $2)));
 		$$->members = *($3);
-		free($3);
+		free($2); free($3);
 	}
 ;
 
 structArgs:
-	%empty { $$ = new ArgumentList(); }
-	| ';' structArgs { $$ = $2; }
+	%empty %prec EMPTY { $$ = new ArgumentList(); }
+	| ';' structArgs   { $$ = $2; }
 	| argRule ';' structArgs {
 		$$ = $3;
-		$$->push_front(sptOf<Argument>($1));
+		$$->push_front(sptOf($1));
 	}
 	| argRule {
 		$$ = new ArgumentList();;
-		$$->push_front(sptOf<Argument>($1));
+		$$->push_front(sptOf($1));
 	}
 ;
 
@@ -290,29 +323,29 @@ funcRule:
 	FUNCTION IDENT_LEFT_PAR funcArgs ')' typeSpec exprBlock END {
 		std::string name($2);
 		name.pop_back();
-		$$ = new DefFunc(@$, sptOf<Ident>(new Ident(locLeft(@2, name.size()), name)),
-			sptOf<Ident>($5), spt<ExprBlock>($6));
+		$$ = new DefFunc(@$, sptOf(new Ident(locLeft(@2, name.size()), name)),
+			sptOf($5), spt<ExprBlock>($6));
 		$$->args = *($3);
-		free($3);
+		free($2); free($3);
 	}
 ;
 funcArgs:
-	%empty { $$ = new ArgumentList(); }
+	%empty %prec EMPTY { $$ = new ArgumentList(); }
 	| funcArgsLeastOne { $$ = $1; }
 ;
 funcArgsLeastOne:
 	argRule ',' funcArgsLeastOne {
 		$$ = $3;
-		$$->push_front(sptOf<Argument>($1));
+		$$->push_front(sptOf($1));
 	}
 	| argRule {
 		$$ = new ArgumentList();;
-		$$->push_front(sptOf<Argument>($1));
+		$$->push_front(sptOf($1));
 	}
 ;
 
 %%
 
 void yyerror(Ast*, const char *s) {
-	throw ParseError(yylloc, "[bison error] " + std::string(s));
+	throw ParseError(yylloc, std::string(s));
 }

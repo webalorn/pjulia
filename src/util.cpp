@@ -75,6 +75,11 @@ std::string ParseError::errorBody() const {
 	return "Parse error: " + str + "\n";
 }
 
+JError::JError(const YYLTYPE loc, const std::string str) : LocalizedError(loc), str(str) {};
+std::string JError::errorBody() const {
+	return "Error: " + str + "\n";
+}
+
 /*
 	Argument parsing
 */

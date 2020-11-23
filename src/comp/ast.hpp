@@ -1,17 +1,28 @@
 #if !defined(AST_HPP)
 #define AST_HPP
 
-#include <memory>
 #include <vector>
 #include <deque>
 #include <map>
 #include <string>
 #include <ostream>
+#include <iostream>
 
 #include "../util.hpp"
 
 struct Declaration;
-#define spt std::shared_ptr
+struct Type;
+struct DefFunc;
+struct DefStruct;
+struct BaseType;
+struct Ident;
+struct Callable;
+
+#define FINAL_AST_NODE_CLS \
+	virtual void show(std::ostream& os) const; \
+	virtual void initEnv(spt<Env> parentEnv); \
+	virtual void refIdents(); \
+	virtual void setTypes();
 
 enum BinaryOperation {
 	OpEq, OpNotEq, OpLower, OpLowerEq, OpGreater, OpGreaterEq,
@@ -20,34 +31,106 @@ enum BinaryOperation {
 enum UnaryOperation {
 	UnaryNot, UnaryMinus
 };
+enum PrimitiveType {
+	TAny, TNothing, TInt64, TBool, TString
+};
+const YYLTYPE NO_LOC = { 0, 0, 0, 0 };
 
+std::ostream& operator<<(std::ostream& os, BinaryOperation op);
+std::ostream& operator<<(std::ostream& os, PrimitiveType type);
+std::ostream& operator<<(std::ostream& os, UnaryOperation op);
+
+
+class Env;
+class Ast;
+
+class Env : public std::enable_shared_from_this<Env> {
+protected:
+	std::map<std::string, spt<Declaration>> declarations;
+	spt<Env> from;
+public:
+	Env(spt<Env> from = nullptr);
+	spt<Env> child();
+
+	bool isNameDefined(spt<Ident> name);
+	bool isNameLocal(spt<Ident> name);
+	void add(spt<Ident> name, spt<Declaration> decl);
+	spt<Declaration> getDeclaration(spt<Ident> name);
+	spt<DefFunc> getFunction(spt<Ident> name);
+	spt<Callable> getCallable(spt<Ident> name);
+	spt<DefStruct> getStruct(spt<Ident> name);
+	spt<Type> getType(spt<Ident> name);
+	spt<Type> getType(std::string name);
+	spt<Ident> getInitialVar(spt<Ident> name);
+	spt<Ident> getOrCreateVar(spt<Ident> name);
+
+	friend class Ast;
+};
 
 class Ast {
 protected:
+	spt<DefFunc> mainFunc;
+	spt<Env> env;
 public:
 	std::vector<spt<Declaration>> declarations;
+
 	Ast();
+	void addDeclaration(spt<Declaration> decl);
 	friend std::ostream& operator<<(std::ostream& os, const Ast& ast);
+	void initEnvTypes();
 };
 
 /*
-	Ast Nodes
+	Ast Nodes (meta-classes)
 */
-struct AstNode {
+
+struct AstNode;
+struct AstNode : public std::enable_shared_from_this<AstNode> {
 	YYLTYPE loc;
+	spt<Env> env;
+
 	inline AstNode(const YYLTYPE loc) : loc(loc) {};
+	template<class T> inline std::shared_ptr<T> shared_as() {
+		auto pt = std::dynamic_pointer_cast<T>(shared_from_this());
+		if (!pt) {
+			throw JError(NO_LOC, "[INTERNAL] shared_as mismatch types");
+		}
+		return pt;
+	}
+
 	virtual void show(std::ostream& os) const = 0;
 	inline virtual ~AstNode() {};
+
+	virtual void initEnv(spt<Env> parentEnv) = 0;
+	virtual void refIdents() = 0;
+	virtual void setTypes() = 0;
 };
 
-// Inline converter
-template<class T> inline std::shared_ptr<T> sptOf(AstNode* pt) {
-	return std::shared_ptr<T>(static_cast<T*>(pt));
-}
 
+/*
+	Real Ast Nodes
+*/
 
+struct Callable {
+	virtual spt<Type> getReturnType() = 0;
+	virtual bool matchArgs(std::vector<spt<Type>>& callTypes) = 0;
+	virtual void checkCallArgs(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes) = 0;
+};
 struct Declaration : public AstNode {
 	using AstNode::AstNode;
+};
+
+struct Type : public Declaration {
+	using Declaration::Declaration;
+	spt<Ident> name;
+	inline Type(const YYLTYPE loc, spt<Ident> name) : Declaration(loc), name(name) {};
+};
+struct BaseType : public Type {
+	PrimitiveType type;
+	inline BaseType(const YYLTYPE loc, spt<Ident> name, PrimitiveType type)
+		: Type(loc, name), type(type) {};
+	BaseType(std::string str_name, PrimitiveType type);
+	FINAL_AST_NODE_CLS
 };
 
 // struct StructDecl : public Declaration {};
@@ -57,19 +140,23 @@ struct Declaration : public AstNode {
 	Expressions
 */
 struct Expr : public Declaration {
+	spt<Type> type;
+
 	using Declaration::Declaration;
+	void mergeType(spt<Type> type2);
 };
 struct ExprBlock : public Expr {
 	using Expr::Expr;
 	std::deque<spt<Expr>> expressions;
+
 	void add(spt<Expr> expr);
-	void add(AstNode* pt);
-	void add_front(AstNode* pt);
-	virtual void show(std::ostream& os) const;
+	void add(Expr* pt);
+	void add_front(Expr* pt);
+	FINAL_AST_NODE_CLS
 };
 struct CallParamList : public ExprBlock {
 	using ExprBlock::ExprBlock;
-	virtual void show(std::ostream& os) const;
+	FINAL_AST_NODE_CLS
 };
 
 struct LValue : public Expr {
@@ -77,8 +164,13 @@ struct LValue : public Expr {
 };
 struct Ident : public LValue {
 	std::string val;
-	inline Ident(const YYLTYPE loc, std::string val) : LValue(loc), val(val) {};
-	virtual void show(std::ostream& os) const;
+	spt<Ident> setAt; // For a variable
+	bool initialized;
+
+	inline Ident(const YYLTYPE loc, std::string val) : LValue(loc), val(val), setAt(nullptr) {
+		initialized = false;
+	};
+	FINAL_AST_NODE_CLS
 };
 
 struct Constant : public Expr {
@@ -89,31 +181,37 @@ struct IntConst : public Constant {
 	long long value;
 	inline IntConst(const YYLTYPE loc, long long value) : Constant(loc), value(value) {}
 	IntConst(const YYLTYPE loc, std::string);
-	virtual void show(std::ostream& os) const;
+	FINAL_AST_NODE_CLS
 };
 struct StrConst : public Constant {
 	std::string value;
 	inline StrConst(const YYLTYPE loc, std::string value) : Constant(loc), value(value) {}
-	virtual void show(std::ostream& os) const;
-	void convertSpecialChars();
+	FINAL_AST_NODE_CLS
+		void convertSpecialChars();
 };
 struct BoolConst : public Constant {
 	bool value;
 	inline BoolConst(const YYLTYPE loc, bool value) : Constant(loc), value(value) {}
-	virtual void show(std::ostream& os) const;
+	FINAL_AST_NODE_CLS
 };
 
 struct CallFunction : public Expr {
-	spt<Ident> func;
+	spt<Ident> funcName;
 	spt<CallParamList> args;
-	inline CallFunction(const YYLTYPE loc, spt<Ident> func, spt<CallParamList> args)
-		: Expr(loc), func(func), args(args) {}
-	virtual void show(std::ostream& os) const;
+	spt<Callable> funcPt;
+
+	inline CallFunction(const YYLTYPE loc, spt<Ident> funcName, spt<CallParamList> args)
+		: Expr(loc), funcName(funcName), args(args) {}
+	FINAL_AST_NODE_CLS
 };
 struct ReturnVal : public Expr {
-	spt<Expr> value; // Can be nullptr
-	inline ReturnVal(const YYLTYPE loc, spt<Expr> value) : Expr(loc), value(value) {}
-	virtual void show(std::ostream& os) const;
+	spt<Expr> value;
+	inline ReturnVal(const YYLTYPE loc, spt<Expr> value) : Expr(loc), value(value) {
+		if (value == nullptr) {
+			value = sptOf(new Ident(loc, "nothing"));
+		}
+	}
+	FINAL_AST_NODE_CLS
 };
 
 /*
@@ -126,7 +224,7 @@ struct Assignment : public Expr {
 
 	inline Assignment(const YYLTYPE loc, spt<LValue> left, spt<Expr> right)
 		: Expr(loc), lvalue(left), rvalue(right) {};
-	virtual void show(std::ostream& os) const;
+	FINAL_AST_NODE_CLS
 };
 struct BinOp : public Expr {
 	BinaryOperation op;
@@ -134,7 +232,7 @@ struct BinOp : public Expr {
 
 	inline BinOp(const YYLTYPE loc, BinaryOperation op, spt<Expr> left, spt<Expr> right)
 		: Expr(loc), op(op), left(left), right(right) {};
-	virtual void show(std::ostream& os) const;
+	FINAL_AST_NODE_CLS
 };
 struct UnaryOp : public Expr {
 	UnaryOperation op;
@@ -142,7 +240,7 @@ struct UnaryOp : public Expr {
 
 	inline UnaryOp(const YYLTYPE loc, UnaryOperation op, spt<Expr> expr)
 		: Expr(loc), op(op), expr(expr) {};
-	virtual void show(std::ostream& os) const;
+	FINAL_AST_NODE_CLS
 };
 struct DotOp : public LValue {
 	spt<Expr> object;
@@ -150,7 +248,7 @@ struct DotOp : public LValue {
 
 	inline DotOp(const YYLTYPE loc, spt<Expr> object, spt<Ident> member)
 		: LValue(loc), object(object), member(member) {};
-	virtual void show(std::ostream& os) const;
+	FINAL_AST_NODE_CLS
 };
 
 /*
@@ -166,20 +264,20 @@ struct FlowFor : public FlowControl {
 	inline FlowFor(const YYLTYPE loc, spt<Ident> counter, spt<Expr> startAt, spt<Expr> endAt,
 		spt<ExprBlock> body)
 		: FlowControl(loc), counter(counter), startAt(startAt), endAt(endAt), body(body) {};
-	virtual void show(std::ostream& os) const;
+	FINAL_AST_NODE_CLS
 };
 struct FlowWhile : public FlowControl {
 	spt<Expr> condition;
 	spt<ExprBlock> body;
 	inline FlowWhile(const YYLTYPE loc, spt<Expr> condition, spt<ExprBlock> body)
 		: FlowControl(loc), condition(condition), body(body) {};
-	virtual void show(std::ostream& os) const;
+	FINAL_AST_NODE_CLS
 };
 struct FlowIfElse : public FlowControl {
 	spt<Expr> condition, ifTrue, ifFalse;
 	inline FlowIfElse(const YYLTYPE loc, spt<Expr> condition, spt<Expr> ifTrue, spt<Expr> ifFalse)
 		: FlowControl(loc), condition(condition), ifTrue(ifTrue), ifFalse(ifFalse) {};
-	virtual void show(std::ostream& os) const;
+	FINAL_AST_NODE_CLS
 };
 
 /*
@@ -187,33 +285,59 @@ struct FlowIfElse : public FlowControl {
 */
 
 struct Argument : public AstNode {
-	spt<Ident> name, type;
+	spt<Ident> name, typeName;
+	spt<Type> argType;
 
-	inline Argument(const YYLTYPE loc, spt<Ident> name, spt<Ident> type)
-		: AstNode(loc), name(name), type(type) {};
-	virtual void show(std::ostream& os) const;
+	inline Argument(const YYLTYPE loc, spt<Ident> name, spt<Ident> typeName)
+		: AstNode(loc), name(name), typeName(typeName) {};
+	FINAL_AST_NODE_CLS
 };
 
 class ArgumentList : public std::deque<spt<Argument>> {};
 
-struct DefStruct : public Declaration {
-	bool isMutable;
-	spt<Ident> name;
-	std::deque<spt<Argument>> members;
-
-	inline DefStruct(const YYLTYPE loc, bool isMutable, spt<Ident> name)
-		: Declaration(loc), isMutable(isMutable), name(name) {};
-	virtual void show(std::ostream& os) const;
+struct StructType : public Type {
+	using Type::Type;
 };
 
-struct DefFunc : public Declaration {
-	spt<Ident> name, type;
-	std::deque<spt<Argument>> args;
+struct DefStruct : public StructType, public Callable {
+	bool isMutable;
+	ArgumentList members;
+	inline bool hasMember(std::string val) {
+		for (auto& m : members) {
+			if (m->name->val == val) return true;
+		}
+		return false;
+	}
+
+	inline DefStruct(const YYLTYPE loc, bool isMutable, spt<Ident> name)
+		: StructType(loc, name), isMutable(isMutable) {};
+
+	inline virtual spt<Type> getReturnType() { return shared_as<Type>(); };
+	virtual bool matchArgs(std::vector<spt<Type>>& callTypes);
+	virtual void checkCallArgs(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes);
+	std::string getSignature();
+
+	FINAL_AST_NODE_CLS
+};
+
+struct DefFunc : public Declaration, public Callable {
+	spt<Ident> name, typeName;
+	spt<Type> returnType;
+	bool isMain;
+	ArgumentList args;
 	spt<ExprBlock> body;
 
-	inline DefFunc(const YYLTYPE loc, spt<Ident> name, spt<Ident> type, spt<ExprBlock> body)
-		: Declaration(loc), name(name), type(type), body(body) {};
-	virtual void show(std::ostream& os) const;
+	inline DefFunc(const YYLTYPE loc, spt<Ident> name, spt<Ident> typeName, spt<ExprBlock> body)
+		: Declaration(loc), name(name), typeName(typeName), body(body) {
+		isMain = false;
+	};
+
+	inline virtual spt<Type> getReturnType() { return returnType; };
+	virtual bool matchArgs(std::vector<spt<Type>>& callTypes);
+	virtual void checkCallArgs(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes);
+	std::string getSignature();
+
+	FINAL_AST_NODE_CLS
 };
 
 

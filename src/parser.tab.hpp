@@ -104,7 +104,12 @@ extern int yydebug;
     OP_OR = 282,                   /* OP_OR  */
     TYPE_SPEC = 283,               /* TYPE_SPEC  */
     END_FILE = 284,                /* END_FILE  */
-    UANRY_MINUS = 285              /* UANRY_MINUS  */
+    WITHOUT_OPTIO = 285,           /* WITHOUT_OPTIO  */
+    REDUCE_BLOCK_RULE = 286,       /* REDUCE_BLOCK_RULE  */
+    FLOW_RULE = 287,               /* FLOW_RULE  */
+    RETURN_RULE = 288,             /* RETURN_RULE  */
+    EMPTY = 289,                   /* EMPTY  */
+    UANRY_MINUS = 290              /* UANRY_MINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -113,9 +118,12 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 46 "src/parser.ypp"
+#line 48 "src/parser.ypp"
 
+	// Input types
 	char *repr;
+
+	// Return types
 	AstNode* astNode;
 	Declaration* astDeclaration;
 	Expr* astExpr;
@@ -130,7 +138,7 @@ union YYSTYPE
 	ArgumentList* astArgList;
 	DefFunc* astFuncDef;
 
-#line 134 "src/parser.tab.hpp"
+#line 142 "src/parser.tab.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
