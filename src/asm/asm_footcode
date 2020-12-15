@@ -63,19 +63,22 @@ abort:
 printf:
 	test $15, %rsp
 	je printf_real_call
-	pushq %r10
 	call printf_real_call
-	popq %r10
 	ret
 printf_real_call:
 	call _printf
 	ret
+malloc:
+	test $15, %rsp
+	je call_malloc
+	call call_malloc
+	ret
+call_malloc:
+	call _malloc
+	ret
 	)ASM";
 else
 os << R"ASM(
-print_Bool:
-	cmp $0, %rax
-	je print_false
 print_true:
 	movq $str_print_true, %rdi
 	jmp printf_call

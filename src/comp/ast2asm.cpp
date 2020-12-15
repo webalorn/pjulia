@@ -330,8 +330,7 @@ void DefStruct::emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParamL
 	}
 	int nbArgs = args->expressions.size();
 	func->add(asmMov, { intArg(structSize * 8), regArg(rdi) });
-	if (targetMacos) func->add(asmCall, { labelArg("_malloc") });
-	else func->add(asmCall, { labelArg("malloc") });
+	func->add(asmCall, { labelArg("malloc") });
 	func->add(asmPushq, { regArg(rax) });
 
 	int offset = 0;

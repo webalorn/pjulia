@@ -314,7 +314,8 @@ void AsmIns::emit(std::ostream& os) {
 		return;
 	}
 	int iArgInit = 0;
-	os << "\t" << AsmIns::codeOf(ins);
+	if (targetMacos && ins == asmLoadAddr) os << "\t" << AsmIns::codeOf(asmMov);
+	else os << "\t" << AsmIns::codeOf(ins);
 	if (ins == asmJumpIf || ins == asmSet) {
 		args[0]->emit(os);
 		iArgInit++;

@@ -75,7 +75,7 @@ void ReturnVal::initEnv(spt<Env> parentEnv) {
 	value->initEnv(env);
 }
 void FlowFor::initEnv(spt<Env> parentEnv) {
-	env = parentEnv->child(false);
+	env = parentEnv->child(true); // TODO : WTF is going on with the for loop ???
 
 	counter->initEnv(env);
 	env->getOrCreateVar(counter, true, true);
