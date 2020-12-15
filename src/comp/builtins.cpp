@@ -40,15 +40,13 @@ std::string BuiltinPrintLn::getSignature() {
 void BuiltinPrint::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	prog->addString("str_print_true", "true");
 	prog->addString("str_print_false", "false");
-	prog->addString("str_print_int", "%d");
+	prog->addString("str_print_int", "%lld");
 	prog->addString("str_print_ln", "\n");
 	prog->addString("str_print_nothing", "nothing");
 	prog->addString("str_print_string", "%s");
 
 	// Generate print_Any
-	auto labelFunc = sptOf(new AsmIns(asmNop, {}));
-	labelFunc->hasLabel = true;
-	labelFunc->labelName = "print_Any";
+	auto labelFunc = sptOf(new AsmIns(asmNop, {}, "print_Any"));
 	func->add(labelFunc);
 
 	std::vector<std::string> types;
@@ -72,7 +70,7 @@ void BuiltinPrint::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 void BuiltinPrint::emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParamList> args) {
 	for (spt<Expr> arg : args->expressions) {
 		arg->emitAsm(prog, func);
-		func->add(asmCall, { labelArg("print_" + arg->type->name->val) });
+		func->add(asmCall, { labelArg("print_" + arg->getType()->name->val) });
 	}
 }
 
@@ -106,7 +104,10 @@ void BuiltinDiv::emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParam
 	auto op1 = sptOf(new AsmIns(asmMov, { regArg(rax), regArg(rcx) }));
 	func->add(asmCmp, { intArg(0), regArg(rax) });
 	func->add(asmJumpIf, { flagArg("ne"), labelArg(op1->getLabel(prog)) });
-	func->abort(prog, "Division by 0");
+	func->abort(prog, "Division by 0, line %d, characters %d-%d",
+		{ intArg(loc.first_line),
+				intArg(loc.first_column),
+				intArg(loc.last_column) });
 
 	func->add(op1);
 	func->add(asmPopq, { regArg(rax) });

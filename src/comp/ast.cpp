@@ -6,22 +6,22 @@
 */
 spt<Ident> identAny;
 
-Env::Env(spt<Env> fromVal) : from(fromVal), lastTypeId(0) {
+Env::Env(spt<Env> fromVal, bool softScope) : from(fromVal), lastTypeId(0), softScope(softScope) {
 	if (from) {
 		inFunction = from->inFunction;
 	}
 }
 
-spt<Env> Env::child() {
-	return sptOf(new Env(shared_from_this()));
+spt<Env> Env::child(bool soft) {
+	return sptOf(new Env(shared_from_this(), soft));
 }
 
 bool Env::isNameDefined(spt<Ident> name) {
 	return declarations.count(name->val)
 		|| (from && from->isNameDefined(name));
 }
-bool Env::isNameLocal(spt<Ident> name) {
-	return declarations.count(name->val);
+bool Env::isNameLocal(spt<Ident> name, bool forceLocal) {
+	return declarations.count(name->val) || (!forceLocal && softScope && from->isNameLocal(name));
 }
 void Env::add(spt<Ident> name, spt<Declaration> decl) {
 	if (isNameLocal(name)) {
@@ -71,14 +71,17 @@ void Env::declFunction(spt<Ident> name, spt<DefFunc> decl) {
 		add(name, decl);
 	}
 }
-spt<Declaration> Env::getDeclaration(spt<Ident> name) {
-	if (!isNameLocal(name)) {
+spt<Declaration> Env::getDeclaration(spt<Ident> name, bool forceLocal) {
+	if (!isNameLocal(name, forceLocal)) {
 		if (from) {
 			return from->getDeclaration(name);
 		}
 		throw JError(name->loc, "The identifier " + name->val + " is not defined");
 	}
-	return declarations[name->val];
+	if (declarations.count(name->val)) {
+		return declarations[name->val];
+	}
+	return from->getDeclaration(name); // in case of softScope
 }
 spt<DefFunc> Env::getFunction(spt<Ident> name) {
 	auto pt = std::dynamic_pointer_cast<DefFunc>(getDeclaration(name));
@@ -111,15 +114,15 @@ spt<Type> Env::getType(spt<Ident> name) {
 spt<Type> Env::getType(std::string name) {
 	return getType(sptOf(new Ident(NO_LOC, name)));
 }
-spt<Ident> Env::getInitialVar(spt<Ident> name) {
-	auto pt = std::dynamic_pointer_cast<Ident>(getDeclaration(name));
+spt<Ident> Env::getInitialVar(spt<Ident> name, bool forceLocal) {
+	auto pt = std::dynamic_pointer_cast<Ident>(getDeclaration(name, forceLocal));
 	if (!pt) {
 		throw JError(name->loc, name->val + " is not a variable");
 	}
 	return pt;
 }
-spt<Ident> Env::getOrCreateVar(spt<Ident> name, bool force) {
-	if (!isNameLocal(name)) {
+spt<Ident> Env::getOrCreateVar(spt<Ident> name, bool force, bool forceLocal) {
+	if (!isNameLocal(name, forceLocal)) {
 		declarations[name->val] = name;
 	}
 	else if (force) {
@@ -273,12 +276,15 @@ std::string DefStruct::getSignature() {
 }
 
 void Callable::asmCheckArgType(spt<AsmProg> prog, spt<AsmFunc> func, spt<Expr> arg, spt<Type> mType) {
-	if (mType->isKnown() && !arg->type->isKnown()) {
+	if (mType->isKnown() && !arg->getType()->isKnown()) {
 		// Value must be the current value
 		auto labelIsOk = sptOf(new AsmIns(asmNop, {}));
 		func->add(asmCmp, { intArg(mType->typeId), regArg(rbx) });
 		func->add(asmJumpIf, { flagArg("e"), labelArg(labelIsOk->getLabel(prog)) });
-		func->abort(prog, "Wrong argument type");
+		func->abort(prog, "Wrong argument type, line %d, characters %d-%d",
+			{ intArg(arg->loc.first_line),
+				intArg(arg->loc.first_column),
+				intArg(arg->loc.last_column) });
 		func->add(labelIsOk);
 	}
 }
@@ -564,7 +570,7 @@ void FlowIfElse::show(std::ostream& os) const {
 
 
 void Argument::show(std::ostream& os) const {
-	os << name->val << " :: " << name->type->name->val;
+	os << name->val << " :: " << name->getType()->name->val;
 }
 void DefStruct::show(std::ostream& os) const {
 	if (isMutable) os << "mutable ";

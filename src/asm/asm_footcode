@@ -8,7 +8,7 @@ _fail:
 	pushq %rsp
 _fail_abort_call:
 	call abort
-_for_gondor:
+_for_gondor: # Quick exponentiation (sorry for the name)
 	movq $1, %rax
 	movq %rdi, %rdx
 	movq %rsi,%rcx
@@ -31,6 +31,48 @@ _for_rohan:
 	jmp _for_mordor
 _for_shire:
 	ret
+print_Bool:
+	cmp $0, %rax
+	je print_false
+)ASM";
+if (targetMacos)
+os << R"ASM(
+print_true:
+	movq str_print_true@GOTPCREL(%rip), %rdi
+	jmp printf_call
+print_false:
+	movq str_print_false@GOTPCREL(%rip), %rdi
+	jmp printf_call
+print_Int64:
+	movq %rax, %rsi
+	movq str_print_int@GOTPCREL(%rip), %rdi
+	jmp printf_call
+print_String:
+	movq %rax, %rsi
+	movq str_print_string@GOTPCREL(%rip), %rdi
+	jmp printf_call
+print_Nothing:
+	leaq str_print_nothing@GOTPCREL(%rip), %rsi
+	movq str_print_string@GOTPCREL(%rip), %rdi
+printf_call:
+	movq $0, %rax
+	call printf
+	ret
+abort:
+	jmp _abort
+printf:
+	test $15, %rsp
+	je printf_real_call
+	pushq %r10
+	call printf_real_call
+	popq %r10
+	ret
+printf_real_call:
+	call _printf
+	ret
+	)ASM";
+else
+os << R"ASM(
 print_Bool:
 	cmp $0, %rax
 	je print_false

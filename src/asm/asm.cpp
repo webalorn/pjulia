@@ -7,7 +7,8 @@ std::ostream& operator<<(std::ostream& os, const spt<AsmProg>& prog) {
 }
 std::ostream& operator<<(std::ostream& os, const AsmProg& prog) {
 	os << "\t.text\n";
-	os << "\t.globl main\n";
+	if (targetMacos) os << "\t.globl _main\n";
+	else os << "\t.globl main\n";
 	for (auto& f : prog.functions) {
 		f->emit(os);
 	}
@@ -103,6 +104,12 @@ std::string AsmProg::store(std::string content) {
 	}
 	return addString("", content);
 }
+spt<AsmLabelRef> AsmProg::storeArg(std::string content) {
+	if (targetMacos) {
+		return labelArg(store(content) + "@GOTPCREL(%rip)");
+	}
+	return labelArg("$" + store(content));
+}
 
 void AsmProg::storeVar(spt<AsmGlobalVar> var) {
 	globalVars.push_back(var);
@@ -117,16 +124,14 @@ AsmFunc::AsmFunc(std::string name, bool isMain)
 	rbpOffset = 0;
 	argOffset = 2;
 	needReturnType = false;
-	footerOp = sptOf(new AsmIns(asmNop, {}));
-	footerOp->hasLabel = true;
-	footerOp->labelName = "end_" + name;
+	footerOp = sptOf(new AsmIns(asmNop, {}, "end_" + name));
 }
 void AsmFunc::emit(std::ostream& os) {
 	os << name << ":\n";
 	os << "\tpushq %rbp\n";
 	os << "\tmovq %rsp, %rbp\n";
 	if (rbpOffset)
-		os << "\tadd $" << (rbpOffset * 8) << ", %rsp\n";
+		os << "\tsub $" << -(rbpOffset * 8) << ", %rsp\n";
 
 	// Set variables as uninitialized
 	for (spt<AsmLoc> varLoc : localVars) {
@@ -137,10 +142,9 @@ void AsmFunc::emit(std::ostream& os) {
 		ins->emit(os);
 	}
 
-
-	os << "\tpopq %rbp\n";
 	if (rbpOffset)
-		os << "\tsub $" << (rbpOffset * 8) << ", %rsp\n";
+		os << "\tadd $" << -(rbpOffset * 8) << ", %rsp\n";
+	os << "\tpopq %rbp\n";
 	os << "\tret\n";
 }
 
@@ -158,11 +162,16 @@ void AsmFunc::alignStack(spt<AsmProg> prog) {
 	add(asmPushq, { regArg(rsp) });
 	add(jumpAfterPush);
 }
-void AsmFunc::abort(spt<AsmProg> prog, std::string message) {
+void AsmFunc::abort(spt<AsmProg> prog, std::string message, std::vector<spt<AsmArg>> args) {
 	if (message.size()) {
 		message = "\e[31m" + message + "\e[0m\n";
 		std::string label = prog->store(message);
 		add(asmLoadAddr, { labelArg(label), regArg(rdi) });
+		if (args.size() >= 1) add(asmMov, { args[0], regArg(rsi) });
+		if (args.size() >= 2) add(asmMov, { args[1], regArg(rdx) });
+		if (args.size() >= 3) add(asmMov, { args[2], regArg(rcx) });
+		if (args.size() >= 4) add(asmMov, { args[3], regArg(r8) });
+		if (args.size() >= 5) add(asmMov, { args[4], regArg(r9) });
 		add(asmCall, { labelArg("_fail_with") });
 	}
 	else {
@@ -232,8 +241,8 @@ void AsmFlag::emit(std::ostream& os) {
 	ASM instructions
 */
 
-AsmIns::AsmIns(AsmInsName ins, std::vector<spt<AsmArg>> insArgs)
-	: hasLabel(false), ins(ins), args(insArgs) {
+AsmIns::AsmIns(AsmInsName ins, std::vector<spt<AsmArg>> insArgs, std::string setLabel)
+	: hasLabel(!setLabel.empty()), labelName(setLabel), ins(ins), args(insArgs) {
 	if ((int)args.size() != AsmIns::nbArgs(ins)) {
 		throw PJuliaError("Wrong number of arguments for asm instruction '"
 			+ AsmIns::codeOf(ins) + "' [INTERNAL]");
@@ -317,6 +326,9 @@ void AsmIns::emit(std::ostream& os) {
 		}
 		os << ' ';
 		args[iArg]->emit(os);
+		if (iArg == 0 && targetMacos && ins == asmLoadAddr) {
+			os << "@GOTPCREL(%rip)";
+		}
 	}
 	os << "\n";
 }

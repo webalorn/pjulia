@@ -24,9 +24,11 @@ int main(int argc, char** argv) {
 		ArgParser parser;
 		BoolPt fParseOnly = parser.addFlag("--parse-only");
 		BoolPt fTypeOnly = parser.addFlag("--type-only");
+		BoolPt fMacOs = parser.addFlag("--macos");
 		ArgPt filenamePt = parser.newPositional("Julia file name");
 		parser.parse(argc, argv);
 
+		targetMacos = *fMacOs;
 		filename = filenamePt->get();
 		FileObj file(filename);
 		yyin = file.c_file();
@@ -52,10 +54,9 @@ int main(int argc, char** argv) {
 		if (*fTypeOnly) {
 			return 0;
 		}
-		std::cout << ast;
+		// std::cout << ast;
 		spt<AsmProg> prog(new AsmProg);
 		ast.emitAsm(prog);
-		std::cout << prog;
 
 		std::ofstream asmFile(getAsmFilename(filename));
 		asmFile << prog;

@@ -11,6 +11,7 @@
 #include "parser.tab.hpp"
 
 extern bool strictTypeMode;
+extern bool targetMacos;
 
 #define spt std::shared_ptr
 // Inline converter

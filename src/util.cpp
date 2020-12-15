@@ -1,6 +1,7 @@
 #include "util.hpp"
 
 bool strictTypeMode = true;
+bool targetMacos = false;
 
 /*
 	Locations

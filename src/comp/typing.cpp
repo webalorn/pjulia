@@ -215,7 +215,7 @@ void DefStruct::setTypes() {
 void DefFunc::setTypes() {
 	asmName = "func_" + name->val;
 	if (isMain) {
-		asmName = "main";
+		asmName = targetMacos ? "_main" : "main";
 	}
 	for (auto arg : args) {
 		arg->setTypes();
@@ -233,5 +233,5 @@ void FuncDispacher::setTypes() {
 		f->setTypes();
 		f->asmName = "func" + std::to_string(iFunc++) + "_" + f->name->val;
 	}
-	asmName = "dispatch_" + functions[0]->name->val;
+	asmName = functions[0]->name->val;
 }

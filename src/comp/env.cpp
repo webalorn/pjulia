@@ -75,16 +75,17 @@ void ReturnVal::initEnv(spt<Env> parentEnv) {
 	value->initEnv(env);
 }
 void FlowFor::initEnv(spt<Env> parentEnv) {
-	env = parentEnv->child();
-	env->getOrCreateVar(counter);
+	env = parentEnv->child(false);
 
 	counter->initEnv(env);
-	startAt->initEnv(env);
-	endAt->initEnv(env);
+	env->getOrCreateVar(counter, true, true);
+
+	startAt->initEnv(parentEnv);
+	endAt->initEnv(parentEnv);
 	body->initEnv(env);
 }
 void FlowWhile::initEnv(spt<Env> parentEnv) {
-	env = parentEnv->child();
+	env = parentEnv->child(true);
 	condition->initEnv(env);
 	body->initEnv(env);
 }

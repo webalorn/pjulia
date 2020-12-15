@@ -3,11 +3,11 @@
 
 void Ast::emitAsm(spt<AsmProg> prog) {
 	spt<AsmPrimitiveCode> primitiveCode = sptOf(new AsmPrimitiveCode());
-	for (auto decl : declarations) {
-		std::cerr << "===== Emit for\n";
-		decl->show(std::cerr);
-		std::cerr << "\n";
-		decl->emitAsm(prog, primitiveCode);
+	for (auto declPair : env->declarations) {
+		// std::cerr << "===== Emit for\n";
+		// declPair.second->show(std::cerr);
+		// std::cerr << "\n";
+		declPair.second->emitAsm(prog, primitiveCode);
 	}
 	prog->add(primitiveCode);
 }
@@ -16,34 +16,46 @@ spt<AsmArg> Expr::getAsmType() {
 		return regArg(rbx);
 	}
 	else {
-		return intArg(type->typeId);
+		return intArg(getType()->typeId);
 	}
 }
 
 spt<AsmArg> Ident::getAsmTypeRef(spt<AsmLoc> loc) {
-	if (setAt->type->isKnown()) {
-		return sptOf(new AsmInt(setAt->type->typeId));
+	if (getType()->isKnown()) {
+		return sptOf(new AsmInt(getType()->typeId));
 	}
 	else {
 		return loc->withOffset(1);
 	}
 }
 
-void ensureType(spt<AsmProg> prog, spt<AsmFunc> func, std::vector<int> typeIds, spt<Expr> expr) {
-	if (!expr || !expr->type->isKnown()) {
+void ensureType(spt<AsmProg> prog, spt<AsmFunc> func, std::vector<int> typeIds, spt<Expr> expr,
+	std::string message = "", std::vector<spt<AsmArg>> args = {}) {
+	if (!expr || !expr->getType()->isKnown()) {
+		if (expr && message == "") {
+			message = "Wrong type, line %d, characters %d-%d";
+			args = { intArg(expr->loc.first_line),
+				intArg(expr->loc.first_column),
+				intArg(expr->loc.last_column) };
+		}
+		else if (message == "") {
+			message = "Wrong type";
+		}
+
 		auto labelIsOk = sptOf(new AsmIns(asmNop, {}));
 		for (int v : typeIds) {
 			func->add(asmCmp, { intArg(v), regArg(rbx) });
 			func->add(asmJumpIf, { flagArg("e"), labelArg(labelIsOk->getLabel(prog)) });
 		}
-		func->abort(prog, "Wrong type");
+		func->abort(prog, message, args);
 		func->add(labelIsOk);
 	}
 }
 
 void allocateVar(spt<AsmProg> prog, spt<AsmFunc> func, spt<Ident> ident) {
 	if (!ident->setAt->asmLoc) {
-		if (func->isMain) {
+		// if (func->isMain) {
+		if (!ident->env->from) {
 			auto loc = sptOf(new AsmGlobalVar(ident->val, false));
 			prog->storeVar(loc);
 			ident->setAt->asmLoc = loc;
@@ -53,7 +65,7 @@ void allocateVar(spt<AsmProg> prog, spt<AsmFunc> func, spt<Ident> ident) {
 			func->rbpOffset -= 2;
 			ident->setAt->asmLoc = sptOf(new AsmOffset(func->rbpOffset));
 		}
-		ident->_forceStoreType = true;
+		ident->setAt->_forceStoreType = true;
 		func->localVars.push_back(ident->setAt->asmLoc);
 	}
 }
@@ -61,11 +73,14 @@ void allocateVar(spt<AsmProg> prog, spt<AsmFunc> func, spt<Ident> ident) {
 void ensureVarIsSet(spt<AsmProg> prog, spt<AsmFunc> func, spt<Ident> ident) {
 	allocateVar(prog, func, ident);
 
-	if (ident->_forceStoreType) { // We don't need to check if function arguments are set
+	if (ident->setAt->_forceStoreType) { // We don't need to check if function arguments are set
 		auto labelIsSet = sptOf(new AsmIns(asmNop, {}));
 		func->add(asmCmp, { intArg(-1), ident->setAt->asmLoc->withOffset(1) });
 		func->add(asmJumpIf, { flagArg("ne"), labelArg(labelIsSet->getLabel(prog)) });
-		func->abort(prog, "Variable used before beeing assigned");
+		func->abort(prog, "Variable used before beeing assigned, line %d, characters %d-%d",
+			{ intArg(ident->loc.first_line),
+				intArg(ident->loc.first_column),
+				intArg(ident->loc.last_column) });
 		func->add(labelIsSet);
 	}
 }
@@ -80,6 +95,10 @@ std::pair<int, spt<Type>> getStructMember(spt<DotOp> op) {
 		op->structType->members[iMember]->argType };
 }
 
+std::string FuncDispacher::getAsmName(int nbArgs) {
+	return "dispatch_" + std::to_string(nbArgs) + "args_" + asmName;
+}
+
 /*
 	Emit ASM
 */
@@ -92,7 +111,7 @@ void ExprBlock::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 void BaseType::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {}
 void Ident::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	ensureVarIsSet(prog, func, shared_as<Ident>());
-	if (setAt->type->name->val != "Nothing") {
+	if (getType()->name->val != "Nothing") {
 		func->add(asmMov, { setAt->asmLoc, regArg(rax) });
 	}
 	else {
@@ -119,6 +138,8 @@ void Assignment::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	}
 	else {
 		leftDotOpt->object->emitAsm(prog, func);
+		ensureType(prog, func, { leftDotOpt->structType->typeId }, leftDotOpt->object);
+
 		func->add(asmPushq, { regArg(rax) });
 		auto offsetAndType = getStructMember(leftDotOpt);
 		loc = sptOf(new AsmOffset(offsetAndType.first, rcx));
@@ -128,7 +149,9 @@ void Assignment::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 
 	rvalue->emitAsm(prog, func);
 	if (leftDotOpt) {
-		ensureType(prog, func, { dotOptType->typeId }, rvalue);
+		if (dotOptType->isKnown()) {
+			ensureType(prog, func, { dotOptType->typeId }, rvalue);
+		}
 		func->add(asmPopq, { regArg(rcx) });
 	}
 
@@ -167,7 +190,7 @@ void BinOp::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 			func->add(asmJumpIf, { flagArg("ne"), labelArg(opJumpAfter->getLabel(prog)) });
 	}
 	else { // Store in stack
-		if (!left->type->isKnown()) {
+		if (!left->getType()->isKnown()) {
 			func->add(asmPushq, { regArg(rbx) });
 		}
 		func->add(asmPushq, { regArg(rax) });
@@ -177,13 +200,19 @@ void BinOp::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	right->emitAsm(prog, func);
 
 	// Type check
-	spt<AsmArg> typeLeft = left->type->isKnown() ? (spt<AsmArg>)intArg(left->type->typeId)
+	spt<AsmArg> typeLeft = left->getType()->isKnown() ? (spt<AsmArg>)intArg(left->getType()->typeId)
 		: sptOf(new AsmOffset(1, rsp));
-	spt<AsmArg> typeRight = right->type->isKnown() ? (spt<AsmArg>)intArg(right->type->typeId)
+
+	bool leftKnown = left->getType()->isKnown();
+	if (op == OpAnd || op == OpOr) {
+		typeLeft = intArg(env->getType("Bool")->typeId);
+		leftKnown = true;
+	}
+	spt<AsmArg> typeRight = right->getType()->isKnown() ? (spt<AsmArg>)intArg(right->getType()->typeId)
 		: regArg(rbx);
-	if (!left->type->isKnown() || !right->type->isKnown()) {
+	if (!leftKnown || !right->getType()->isKnown()) {
 		auto labelIsOk = sptOf(new AsmIns(asmNop, {}));
-		if (right->type->isKnown()) {
+		if (right->getType()->isKnown()) {
 			func->add(asmCmp, { typeRight, typeLeft });
 		}
 		else {
@@ -196,7 +225,11 @@ void BinOp::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 			func->add(asmJump, { labelArg(opJumpAfter->getLabel(prog)) });
 		}
 		else {
-			func->abort(prog, "Different types for operation");
+			func->abort(prog, "Different types for operation %s, line %d, characters %d-%d",
+				{ prog->storeArg(asStr(op)),
+				intArg(loc.first_line),
+				intArg(loc.first_column),
+				intArg(loc.last_column) });
 		}
 		func->add(labelIsOk);
 	}
@@ -231,7 +264,10 @@ void BinOp::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 		auto op1 = sptOf(new AsmIns(asmMov, { regArg(rax), regArg(rcx) }));
 		func->add(asmCmp, { intArg(0), regArg(rax) });
 		func->add(asmJumpIf, { flagArg("ne"), labelArg(op1->getLabel(prog)) });
-		func->abort(prog, "Modulo by 0");
+		func->abort(prog, "Modulo by 0, line %d, characters %d-%d",
+			{ intArg(loc.first_line),
+				intArg(loc.first_column),
+				intArg(loc.last_column) });
 
 		func->add(op1);
 		func->add(asmPopq, { regArg(rax) });
@@ -249,10 +285,12 @@ void BinOp::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 
 
 	func->add(opJumpAfter);
-	if (depopEnd) {
-		func->add(asmPopq, { regArg(r10) });
+	if (op != OpAnd && op != OpOr) {
+		if (depopEnd) {
+			func->add(asmPopq, { regArg(r10) });
+		}
+		if (!left->getType()->isKnown()) func->add(asmPopq, { regArg(r10) });
 	}
-	if (!left->type->isKnown()) func->add(asmPopq, { regArg(r10) });
 }
 
 void UnaryOp::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
@@ -292,7 +330,8 @@ void DefStruct::emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParamL
 	}
 	int nbArgs = args->expressions.size();
 	func->add(asmMov, { intArg(structSize * 8), regArg(rdi) });
-	func->add(asmCall, { labelArg("malloc") });
+	if (targetMacos) func->add(asmCall, { labelArg("_malloc") });
+	else func->add(asmCall, { labelArg("malloc") });
 	func->add(asmPushq, { regArg(rax) });
 
 	int offset = 0;
@@ -317,56 +356,65 @@ void DefStruct::emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParamL
 	func->add(asmPopq, { regArg(rax) });
 }
 void DefFunc::emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParamList> argsValues) {
-	int argStackSize = 0;
 	for (int iArg = argsValues->expressions.size() - 1; iArg >= 0; iArg--) {
 		auto expr = argsValues->expressions[iArg];
 		expr->emitAsm(prog, func);
 		if (args[iArg]->argType->isKnown()) {
 			ensureType(prog, func, { args[iArg]->argType->typeId }, expr);
 		}
-		else {
-			func->add(asmPushq, { expr->getAsmType() });
-			argStackSize++;
-		}
+		func->add(asmPushq, { expr->getAsmType() });
 		func->add(asmPushq, { regArg(rax) });
-		argStackSize++;
 	}
 	func->add(asmCall, { labelArg(asmName) });
 
-	// for (auto a : args) {
-	// 	if (!a->argType->isKnown()) func->add(asmPopq, { regArg(r10) });
-	// 	func->add(asmPopq, { regArg(r10) });
-	// }
-	if (argStackSize)
+	int argStackSize = argsValues->expressions.size() * 2;
+	if (argStackSize) {
 		func->add(asmAdd, { intArg(argStackSize * 8), regArg(rsp) });
+	}
 }
 void FuncDispacher::emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParamList> args) {
-	throw UsageError("Not implemented yet [FuncDispacher::emitAsmCall]");
+	for (int iArg = args->expressions.size() - 1; iArg >= 0; iArg--) {
+		auto expr = args->expressions[iArg];
+		expr->emitAsm(prog, func);
+		func->add(asmPushq, { expr->getAsmType() });
+		func->add(asmPushq, { regArg(rax) });
+	}
+	func->add(asmCall, { labelArg(getAsmName(args->expressions.size())) });
+
+	int argStackSize = args->expressions.size() * 2;
+	if (argStackSize) {
+		func->add(asmAdd, { intArg(argStackSize * 8), regArg(rsp) });
+	}
 }
 void CallFunction::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	funcPt->emitAsmCall(prog, func, args);
 }
 void ReturnVal::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	value->emitAsm(prog, func);
-	if (value->type->isKnown() && func->needReturnType) {
-		func->add(asmMov, { value->getAsmType(), regArg(rbx) });
-	}
+	// if (value->getType()->isKnown() && func->needReturnType) {
+	func->add(asmMov, { value->getAsmType(), regArg(rbx) });
+	// }
 	func->add(asmJump, { labelArg(func->footerOp->getLabel(prog)) });
 }
 void FlowFor::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	auto labelBegin = sptOf(new AsmIns(asmNop, {}));
 	auto labelEnd = sptOf(new AsmIns(asmNop, {}));
 
+
+	startAt->emitAsm(prog, func);
+	ensureType(prog, func, { env->getType("Int64")->typeId }, startAt);
+
+	allocateVar(prog, func, counter);
+	auto varLoc = counter->setAt->asmLoc;
+	func->add(asmMov, { regArg(rax), varLoc });
+	func->add(asmMov, { intArg(env->getType("Int64")->typeId), varLoc->withOffset(1) });
+
 	endAt->emitAsm(prog, func);
 	ensureType(prog, func, { env->getType("Int64")->typeId }, endAt);
 	func->add(asmPushq, { regArg(rax) });
 
-	startAt->emitAsm(prog, func);
-	ensureType(prog, func, { env->getType("Int64")->typeId }, startAt);
-	allocateVar(prog, func, counter);
-	auto varLoc = counter->setAt->asmLoc;
-	func->add(asmMov, { regArg(rax), varLoc });
-	func->add(asmCmp, { sptOf(new AsmOffset(0, rsp)), regArg(rax) });
+	// func->add(asmCmp, { sptOf(new AsmOffset(0, rsp)), regArg(rax) });
+	func->add(asmCmp, { regArg(rax), varLoc });
 	func->add(asmJumpIf, { flagArg("g"), labelArg(labelEnd->getLabel(prog)) });
 
 	func->add(labelBegin);
@@ -403,15 +451,15 @@ void FlowIfElse::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	func->add(asmJumpIf, { flagArg("e"), labelArg(labelElse->getLabel(prog)) });
 
 	ifTrue->emitAsm(prog, func);
-	if (!type->isKnown() && ifTrue->type->isKnown()) {
-		func->add(asmMov, { intArg(ifTrue->type->typeId), regArg(rbx) });
+	if (!type->isKnown() && ifTrue->getType()->isKnown()) {
+		func->add(asmMov, { intArg(ifTrue->getType()->typeId), regArg(rbx) });
 	}
 	func->add(asmJump, { labelArg(labelEnd->getLabel(prog)) });
 
 	func->add(labelElse);
 	ifFalse->emitAsm(prog, func);
-	if (!type->isKnown() && ifFalse->type->isKnown()) {
-		func->add(asmMov, { intArg(ifFalse->type->typeId), regArg(rbx) });
+	if (!type->isKnown() && ifFalse->getType()->isKnown()) {
+		func->add(asmMov, { intArg(ifFalse->getType()->typeId), regArg(rbx) });
 	}
 	func->add(labelEnd);
 }
@@ -421,9 +469,7 @@ void Argument::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	func->argOffset += 2;
 }
 void DefStruct::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
-	auto opPush = sptOf(new AsmIns(asmPushq, { regArg(rax) }));
-	opPush->hasLabel = true;
-	opPush->labelName = "print_" + name->val;
+	auto opPush = sptOf(new AsmIns(asmPushq, { regArg(rax) }, "print_" + name->val));
 	func->add(opPush);
 
 	std::string openStr = prog->store(name->val + "(");
@@ -478,12 +524,83 @@ void DefFunc::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	}
 	func->add(func->footerOp);
 	if (returnType->isKnown()) {
-		ensureType(prog, func, { returnType->typeId }, nullptr);
+		ensureType(prog, func, { returnType->typeId }, nullptr,
+			"Wrong default return type for %s, defined line %d",
+			{ prog->storeArg(name->val), intArg(loc.first_line) });
 	}
 }
-void FuncDispacher::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
+void FuncDispacher::emitAsm(spt<AsmProg> prog, spt<AsmFunc> asmFunc) {
 	for (auto& f : functions) {
-		f->emitAsm(prog, func);
+		f->emitAsm(prog, asmFunc);
 	}
-	throw UsageError("Not implemented yet [FuncDispacher]");
+	asmFunc = sptOf(new AsmPrimitiveCode());
+	prog->add(asmFunc);
+
+	auto errorLabel = sptOf(new AsmIns(asmNop, {}, "dispatchError_" + asmName));
+	std::vector<std::vector<spt<DefFunc>>> funcsByNArgs;
+	for (spt<DefFunc>& func : functions) {
+		if (funcsByNArgs.size() <= func->args.size()) {
+			funcsByNArgs.resize(func->args.size() + 1);
+		}
+		funcsByNArgs[func->args.size()].push_back(func);
+	}
+	for (int nArgs = 0; nArgs < (int)funcsByNArgs.size(); nArgs++) {
+		if (funcsByNArgs[nArgs].size()) {
+			auto dispatchLabel = sptOf(new AsmIns(asmNop, {}, getAsmName(nArgs)));
+			asmFunc->add(dispatchLabel);
+			dynamicDispatch(prog, asmFunc, errorLabel, 0, funcsByNArgs[nArgs]);
+		}
+	}
+
+	asmFunc->add(errorLabel);
+	asmFunc->abort(prog, "No definition of " + asmName + " matches these arguments (line %d, characters %d-%d)",
+		{ intArg(loc.first_line),
+				intArg(loc.first_column),
+				intArg(loc.last_column) });
+}
+
+void FuncDispacher::dynamicDispatch(spt<AsmProg> prog, spt<AsmFunc> asmFunc, spt<AsmIns> errorLabel, int iArg, std::vector<spt<DefFunc>> funcs) {
+	if (funcs.size() == 0) {
+		asmFunc->add(asmJump, { labelArg(errorLabel->getLabel(prog)) });
+		return;
+	}
+	if (iArg >= (int)funcs[0]->args.size()) {
+		if (funcs.size() == 1) {
+			asmFunc->add(asmJump, { labelArg(funcs[0]->asmName) });
+		}
+		else {
+			asmFunc->add(asmJump, { labelArg(errorLabel->getLabel(prog)) });
+		}
+		return;
+	}
+
+	std::vector<spt<DefFunc>> funcsAny;
+	std::map<int, std::vector<spt<DefFunc>>> funcsTyped;
+
+	for (auto f : funcs) {
+		if (f->args[iArg]->argType->isKnown()) {
+			int iType = f->args[iArg]->argType->typeId;
+			if (funcsTyped.count(iType) == 0) {
+				funcsTyped[iType] = {};
+			}
+			funcsTyped[iType].push_back(f);
+		}
+		else {
+			funcsAny.push_back(f);
+		}
+	}
+	spt<AsmIns> nextLabel(nullptr);
+	for (auto& typeFuncsPair : funcsTyped) {
+		std::vector<spt<DefFunc>> funcsGroup = typeFuncsPair.second;
+		funcsGroup.insert(funcsGroup.end(), funcsAny.begin(), funcsAny.end());
+
+		if (nextLabel) asmFunc->add(nextLabel);
+		nextLabel = sptOf(new AsmIns(asmNop, {}));
+		asmFunc->add(asmCmp, { intArg(typeFuncsPair.first),
+			sptOf(new AsmOffset(2 * (iArg + 1), rsp)) });
+		asmFunc->add(asmJumpIf, { flagArg("ne"), labelArg(nextLabel->getLabel(prog)) });
+		dynamicDispatch(prog, asmFunc, errorLabel, iArg + 1, funcsGroup);
+	}
+	if (nextLabel) asmFunc->add(nextLabel);
+	dynamicDispatch(prog, asmFunc, errorLabel, iArg + 1, funcsAny);
 }

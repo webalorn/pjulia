@@ -58,8 +58,8 @@ struct AsmArg {
 };
 
 struct AsmInt : AsmArg {
-	int value;
-	inline AsmInt(int value) : value(value) {}
+	long long value;
+	inline AsmInt(long long value) : value(value) {}
 	void emit(std::ostream& os);
 };
 struct AsmLabelRef : AsmArg {
@@ -104,7 +104,7 @@ struct AsmGlobalVar : AsmLoc {
 inline spt<AsmRegArg> regArg(RegName reg) {
 	return sptOf(new AsmRegArg(reg));
 }
-inline spt<AsmInt> intArg(int val) {
+inline spt<AsmInt> intArg(long long val) {
 	return sptOf(new AsmInt(val));
 }
 inline spt<AsmLabelRef> labelArg(std::string val) {
@@ -121,7 +121,7 @@ struct AsmIns {
 	AsmInsName ins;
 	std::vector<spt<AsmArg>> args;
 
-	AsmIns(AsmInsName ins, std::vector<spt<AsmArg>> args);
+	AsmIns(AsmInsName ins, std::vector<spt<AsmArg>> args, std::string setLabel = "");
 	void emit(std::ostream& os);
 	std::string getLabel(spt<AsmProg> prog);
 
@@ -144,7 +144,7 @@ public:
 	spt<AsmIns> add(AsmInsName insName, std::vector<spt<AsmArg>> args);
 	spt<AsmIns> add(spt<AsmIns> ins);
 	void alignStack(spt<AsmProg> prog);
-	void abort(spt<AsmProg> prog, std::string message = "");
+	void abort(spt<AsmProg> prog, std::string message = "", std::vector<spt<AsmArg>> args = {});
 	inline virtual ~AsmFunc() {};
 };
 
@@ -166,6 +166,7 @@ public:
 	void add(spt<AsmFunc> func);
 	std::string addString(std::string label, std::string content);
 	std::string store(std::string content);
+	spt<AsmLabelRef> storeArg(std::string content);
 	void storeVar(spt<AsmGlobalVar> var);
 	std::string randomLabel();
 };

@@ -50,26 +50,27 @@ class Ast;
 class Env : public std::enable_shared_from_this<Env> {
 protected:
 	std::map<std::string, spt<DefStruct>> memberToStruct;
-	spt<Env> from;
 	int lastTypeId;
+	bool softScope;
 public:
+	spt<Env> from;
 	std::map<std::string, spt<Declaration>> declarations;
 	spt<DefFunc> inFunction;
-	Env(spt<Env> from = nullptr);
-	spt<Env> child();
+	Env(spt<Env> from = nullptr, bool softScope = false);
+	spt<Env> child(bool soft = false);
 
 	bool isNameDefined(spt<Ident> name);
-	bool isNameLocal(spt<Ident> name);
+	bool isNameLocal(spt<Ident> name, bool forceLocal = false);
 	void add(spt<Ident> name, spt<Declaration> decl);
 	void declFunction(spt<Ident> name, spt<DefFunc> decl);
-	spt<Declaration> getDeclaration(spt<Ident> name);
+	spt<Declaration> getDeclaration(spt<Ident> name, bool forceLocal = false);
 	spt<DefFunc> getFunction(spt<Ident> name);
 	spt<Callable> getCallable(spt<Ident> name);
 	spt<DefStruct> getStruct(spt<Ident> name);
 	spt<Type> getType(spt<Ident> name);
 	spt<Type> getType(std::string name);
-	spt<Ident> getInitialVar(spt<Ident> name);
-	spt<Ident> getOrCreateVar(spt<Ident> name, bool force = false);
+	spt<Ident> getInitialVar(spt<Ident> name, bool forceLocal = false);
+	spt<Ident> getOrCreateVar(spt<Ident> name, bool force = false, bool forceLocal = false);
 
 	spt<DefStruct> structWith(spt<Ident> name);
 	void setTypeId(spt<Type> tpPt);
@@ -160,12 +161,13 @@ struct Expr : public Declaration {
 	spt<Type> type;
 	bool _forceStoreType;
 
-	inline bool forceStore() { return _forceStoreType || !this->type->isKnown(); }
+	inline bool forceStore() { return _forceStoreType || !this->getType()->isKnown(); }
 	spt<AsmArg> getAsmType();
 
 	using Declaration::Declaration;
 	inline Expr(const YYLTYPE loc) : Declaration(loc), _forceStoreType(false) {}
 	void mergeType(spt<Type> type2);
+	inline virtual spt<Type> getType() { return type; };
 };
 
 struct ExprBlock : public Expr {
@@ -198,6 +200,7 @@ struct Ident : public LValue {
 		isMutable = true;
 	};
 	spt<AsmArg> getAsmTypeRef(spt<AsmLoc> loc);
+	inline virtual spt<Type> getType() { return setAt->type; };
 	FINAL_AST_NODE_CLS
 };
 
@@ -386,6 +389,9 @@ struct FuncDispacher : public Declaration, public Callable {
 	spt<Callable> tryPreDispatch(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes);
 	std::string getSignature();
 	void checkAmbiguous();
+
+	std::string getAsmName(int nbArgs);
+	void dynamicDispatch(spt<AsmProg> prog, spt<AsmFunc> asmFunc, spt<AsmIns> errorLabel, int iArg, std::vector<spt<DefFunc>> funcs);
 
 	FINAL_AST_NODE_CLS
 };
