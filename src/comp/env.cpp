@@ -1,5 +1,14 @@
 #include "ast.hpp"
 
+void Env::setTypeId(spt<Type> tpPt) {
+	if (from) {
+		from->setTypeId(tpPt);
+	}
+	else {
+		tpPt->typeId = (lastTypeId++);
+	}
+}
+
 /*
 	Build the environments
 */
@@ -14,6 +23,7 @@ void BaseType::initEnv(spt<Env> parentEnv) {
 	env = parentEnv;
 	name->initEnv(env);
 	env->add(name, shared_as<BaseType>());
+	env->setTypeId(shared_as<Type>());
 }
 void Ident::initEnv(spt<Env> parentEnv) {
 	env = parentEnv;
@@ -95,6 +105,7 @@ void Argument::initEnv(spt<Env> parentEnv) {
 void DefStruct::initEnv(spt<Env> parentEnv) {
 	name->initEnv(parentEnv);
 	parentEnv->add(name, shared_as<DefStruct>());
+	parentEnv->setTypeId(shared_as<Type>());
 
 	env = parentEnv->child();
 	for (auto member : members) {
@@ -201,6 +212,7 @@ void FlowIfElse::refIdents() {
 void Argument::refIdents() {
 	argType = env->getType(typeName);
 	setRefered(name, true);
+	name->type = env->getType(typeName);
 }
 void DefStruct::refIdents() {
 	for (auto& m : members) {

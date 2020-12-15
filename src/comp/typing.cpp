@@ -8,9 +8,6 @@ void Ast::initEnvTypes() {
 	for (auto decl : declarations) {
 		decl->refIdents();
 	}
-	// for (auto decl : declarations) {
-	// 	decl->setTypes();
-	// }
 	for (auto declPair : env->declarations) {
 		declPair.second->setTypes();
 	}
@@ -39,7 +36,11 @@ void assertType(spt<Expr> expr, std::vector<PrimitiveType> matchWith) {
 		throw JError(expr->loc, should + " be of type " + ofType);
 	}
 }
-
+void assertTypeEqual(spt<Expr> a, spt<Expr> b) {
+	if (a->type->isKnown() && b->type->isKnown() && a->type->name->val != b->type->name->val) {
+		throw JError(b->loc, "should be of type " + a->type->name->val);
+	}
+}
 /*
 	Set types
 */
@@ -116,6 +117,9 @@ void BinOp::setTypes() {
 		assertType(right, { TInt64 });
 		type = env->getType("Int64");
 	}
+	if (op != OpEq && op != OpNotEq) {
+		assertTypeEqual(left, right);
+	}
 }
 void UnaryOp::setTypes() {
 	expr->setTypes();
@@ -130,28 +134,17 @@ void UnaryOp::setTypes() {
 }
 void DotOp::setTypes() {
 	object->setTypes();
-	if (typeMatch(object->type, { TAny })) {
-		std::vector<spt<DefStruct>> structs = env->structsWith(member);
-		std::cerr << "nb = " << structs.empty() << "\n";
-		if (structs.empty()) {
-			throw JError(loc, "No structure with a member " + member->val);
-		}
-		else if (structs.size() == 1) {
-			object->type = structs[0];
-		}
+	auto objectType = object->type;
+	if (typeMatch(objectType, { TAny })) {
+		objectType = env->structWith(member);
 	}
 
-	if (typeMatch(object->type, { TAny })) {
-		type = env->getType("Any");
+	structType = std::dynamic_pointer_cast<DefStruct>(objectType);
+	if (!structType) throw JError(object->loc, "Should be a struct");
+	if (!structType->hasMember(member->val)) {
+		throw JError(object->loc, "The structure has no member " + member->val);
 	}
-	else {
-		auto str = std::dynamic_pointer_cast<DefStruct>(object->type);
-		if (!str) throw JError(object->loc, "Should be a struct");
-		if (!str->hasMember(member->val)) {
-			throw JError(object->loc, "The structure has no member " + member->val);
-		}
-		type = str->env->getInitialVar(member)->type;
-	}
+	type = structType->env->getInitialVar(member)->type;
 }
 
 void CallParamList::setTypes() {
@@ -204,6 +197,10 @@ void FlowIfElse::setTypes() {
 	assertType(condition, { TBool });
 	type = ifTrue->type;
 	mergeType(ifFalse->type);
+	// if (!type->isKnown()) {
+	// 	ifTrue->_forceStoreType = true;
+	// 	ifFalse->_forceStoreType = true;
+	// }
 }
 
 void Argument::setTypes() {
@@ -216,6 +213,10 @@ void DefStruct::setTypes() {
 	}
 }
 void DefFunc::setTypes() {
+	asmName = "func_" + name->val;
+	if (isMain) {
+		asmName = "main";
+	}
 	for (auto arg : args) {
 		arg->setTypes();
 	}
@@ -227,7 +228,10 @@ void DefFunc::setTypes() {
 }
 void FuncDispacher::setTypes() {
 	checkAmbiguous();
+	int iFunc = 0;
 	for (auto& f : functions) {
 		f->setTypes();
+		f->asmName = "func" + std::to_string(iFunc++) + "_" + f->name->val;
 	}
+	asmName = "dispatch_" + functions[0]->name->val;
 }

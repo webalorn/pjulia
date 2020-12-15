@@ -1,0 +1,58 @@
+os << R"ASM(
+_fail_with:
+	movq $0, %rax
+	call printf
+_fail:
+	test $15, %rsp
+	je _fail_abort_call
+	pushq %rsp
+_fail_abort_call:
+	call abort
+_for_gondor:
+	movq $1, %rax
+	movq %rdi, %rdx
+	movq %rsi,%rcx
+	shrq $63,%rcx
+	testq $1, %rcx # negative numbers : result = 0 or 1
+	je _for_mordor
+	cmpq $1, %rdi
+	je _for_shire
+	movq $0, %rax
+	jmp _for_shire
+_for_mordor:
+	cmpq $0, %rsi
+	je _for_shire
+	testq $1, %rsi
+	je _for_rohan
+	imulq %rdx, %rax
+_for_rohan:
+	imulq %rdx, %rdx
+	shrq $1, %rsi
+	jmp _for_mordor
+_for_shire:
+	ret
+print_Bool:
+	cmp $0, %rax
+	je print_false
+print_true:
+	movq $str_print_true, %rdi
+	jmp printf_call
+print_false:
+	movq $str_print_false, %rdi
+	jmp printf_call
+print_Int64:
+	movq %rax, %rsi
+	movq $str_print_int, %rdi
+	jmp printf_call
+print_String:
+	movq %rax, %rsi
+	movq $str_print_string, %rdi
+	jmp printf_call
+print_Nothing:
+	leaq str_print_nothing, %rsi
+	movq $str_print_string, %rdi
+printf_call:
+	movq $0, %rax
+	call printf
+	ret
+	)ASM";

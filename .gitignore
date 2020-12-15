@@ -4,6 +4,7 @@
 *.o
 .DS_Store
 *.dSYM
+*.pdf
 .vscode/*
 .vscode/
 

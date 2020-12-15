@@ -43,7 +43,7 @@
 %locations
 %parse-param {Ast *ast}
 // %define parse.lac full
-%define parse.error detailed
+%define parse.error verbose
 
 %union {
 	// Input types
@@ -98,20 +98,17 @@
 
 // Precedence
 %precedence WITHOUT_OPTIO
-%precedence REDUCE_BLOCK_RULE
-%precedence FLOW_RULE
 %precedence RETURN_RULE
 
-%precedence EMPTY
 %right '='
 %left OP_AND OP_OR
 %nonassoc OP_LOWER_EQ OP_GREATER_EQ '<' '>' OP_EQ OP_NEQ
-%left UANRY_MINUS
 %left '+' '-'
-%left '!'
+%precedence UANRY_MINUS
+%precedence '!'
 %left '*' '%'
 %left '^'
-%left '.'
+%precedence '.'
 
 %start prog_file
 
@@ -124,7 +121,7 @@ prog:
 			ast->addDeclaration(sptOf($2));
 		}
 	}
-	| %empty %prec EMPTY {}
+	| %empty {}
 ;
 
 // Expression, struct or function
@@ -141,13 +138,13 @@ maybeExpr:
 ;
 
 exprBlock:
-	%empty %prec EMPTY                         { $$ = new ExprBlock(@$); }
-	| ';' exprBlock %prec REDUCE_BLOCK_RULE    { $$ = $2; $$->loc = @$; }
-	| exprBlocLeastOne %prec REDUCE_BLOCK_RULE { $$ = $1; $$->loc = @$; }
+	%empty             { $$ = new ExprBlock(@$); }
+	| ';' exprBlock    { $$ = $2; $$->loc = @$; }
+	| exprBlocLeastOne { $$ = $1; $$->loc = @$; }
 ;
 exprBlocLeastOne:
-	expr %prec REDUCE_BLOCK_RULE { $$ = new ExprBlock(@$); $$->add($1); }
-	| expr  ';' exprBlock %prec REDUCE_BLOCK_RULE { $$ = $3; $$->add_front($1); $$->loc = @$; }
+	expr { $$ = new ExprBlock(@$); $$->add($1); }
+	| expr  ';' exprBlock { $$ = $3; $$->add_front($1); $$->loc = @$; }
 ;
 
 expr:
@@ -203,9 +200,6 @@ expr:
 	| RETURN %prec WITHOUT_OPTIO { $$ = new ReturnVal(@$, nullptr); }
 	| binOpRule   { $$ = $1; }
 	| unaryOpRule { $$ = $1; }
-	// | lvalue '=' expr {
-	// 	$$ = new Assignment(@$, sptOf($1), sptOf($3));
-	// }
 	| expr '=' expr { // Workaround because bison does strange things with %prec
 		LValue* lval = dynamic_cast<LValue*>($1);
 		if (lval == nullptr) {
@@ -216,15 +210,15 @@ expr:
 	}
 
 	// Flow control
-	| FOR IDENT '=' expr ':' expr exprBlock END %prec FLOW_RULE {
+	| FOR IDENT '=' expr ':' expr exprBlock END {
 		$$ = new FlowFor(@$, sptOf(new Ident(@2, $2)), sptOf($4),
 			sptOf($6), sptOf($7));
 		free($2);
 	}
-	| WHILE expr exprBlock END %prec FLOW_RULE {
+	| WHILE expr exprBlock END {
 		$$ = new FlowWhile(@$, sptOf($2), sptOf($3));
 	}
-	| IF expr exprBlock elseRule %prec FLOW_RULE {
+	| IF expr exprBlock elseRule {
 		$$ = new FlowIfElse(@$, sptOf($2), sptOf($3), sptOf($4));
 	}
 ;
@@ -235,14 +229,14 @@ binOpRule:
 	| expr '+' expr            { $$ = newOp(@$, OpPlus, $1, $3);    }
 	| expr '-' expr            { $$ = newOp(@$, OpMinus, $1, $3);   }
 	| expr '*' expr            { $$ = newOp(@$, OpTimes, $1, $3);   }
-	| expr '%' expr            { $$ = newOp(@$, OpMod, $1, $3);     }
+	| expr '%' expr            { $$ = newOp(@$, OpMod, $1, $3);     } // '
 	| expr '^' expr            { $$ = newOp(@$, OpPower, $1, $3);   }
 	| expr OP_EQ expr          { $$ = newOp(@$, OpEq, $1, $3);      }
 	| expr OP_NEQ expr         { $$ = newOp(@$, OpNotEq, $1, $3);   }
 	| expr OP_LOWER_EQ expr    { $$ = newOp(@$, OpLowerEq, $1, $3); }
-	| expr OP_GREATER_EQ expr  { $$ = newOp(@$, OpGreater, $1, $3); }
+	| expr OP_GREATER_EQ expr  { $$ = newOp(@$, OpGreaterEq, $1, $3); }
 	| expr OP_AND expr         { $$ = newOp(@$, OpAnd, $1, $3);     }
-	| expr OP_OR expr          { $$ = newOp(@$, OpAnd, $1, $3);     }
+	| expr OP_OR expr          { $$ = newOp(@$, OpOr, $1, $3);     }
 ;
 
 unaryOpRule:
@@ -263,7 +257,7 @@ callArgListLeastOne:
 	| expr ',' callArgListLeastOne { $$ = $3; $$->add_front($1); }
 ;
 callArgList:
-	%empty %prec EMPTY    { $$ = new CallParamList(@$); }
+	%empty                { $$ = new CallParamList(@$); }
 	| callArgListLeastOne { $$ = $1; }
 ;
 
@@ -279,7 +273,7 @@ elseRule:
 ;
 
 typeSpec:
-	  %empty %prec EMPTY { $$ = new Ident(@$, "Any");        }
+	  %empty             { $$ = new Ident(@$, "Any");        }
 	| TYPE_SPEC IDENT    { $$ = new Ident(@2, $2); free($2); }
 ;
 argRule:
@@ -304,7 +298,7 @@ structDef:
 ;
 
 structArgs:
-	%empty %prec EMPTY { $$ = new ArgumentList(); }
+	%empty             { $$ = new ArgumentList(); }
 	| ';' structArgs   { $$ = $2; }
 	| argRule ';' structArgs {
 		$$ = $3;
@@ -328,7 +322,7 @@ funcRule:
 	}
 ;
 funcArgs:
-	%empty %prec EMPTY { $$ = new ArgumentList(); }
+	%empty             { $$ = new ArgumentList(); }
 	| funcArgsLeastOne { $$ = $1; }
 ;
 funcArgsLeastOne:

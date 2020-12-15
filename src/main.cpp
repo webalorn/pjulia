@@ -1,11 +1,21 @@
 #include <iostream>
+#include <fstream>
 #include "parser.tab.hpp"
 #include "util.hpp"
 #include "comp/ast.hpp"
+#include "asm/asm.hpp"
 
 extern FILE* yyin;
 extern int yyparse(Ast*);
 extern int yydebug;
+
+std::string getAsmFilename(std::string filename) {
+	int n = filename.size();
+	if (n >= 3 && filename.substr(n - 3, 3) == ".jl") {
+		return filename.substr(0, n - 3) + ".s";
+	}
+	return filename + ".s";
+}
 
 int main(int argc, char** argv) {
 	// yydebug = 1;
@@ -35,13 +45,20 @@ int main(int argc, char** argv) {
 		}
 
 		/* Set types */
-		strictTypeMode = !(*fTypeOnly);
+		// strictTypeMode = !(*fTypeOnly);
+		strictTypeMode = false;
 		ast.initEnvTypes();
 
 		if (*fTypeOnly) {
 			return 0;
 		}
-		// std::cout << ast;
+		std::cout << ast;
+		spt<AsmProg> prog(new AsmProg);
+		ast.emitAsm(prog);
+		std::cout << prog;
+
+		std::ofstream asmFile(getAsmFilename(filename));
+		asmFile << prog;
 	}
 	catch (PJuliaBaseError& e) {
 		e.giveContext(filename);

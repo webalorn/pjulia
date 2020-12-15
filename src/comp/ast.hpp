@@ -9,6 +9,7 @@
 #include <iostream>
 
 #include "../util.hpp"
+#include "../asm/asm.hpp"
 
 struct Declaration;
 struct Type;
@@ -17,12 +18,14 @@ struct DefStruct;
 struct BaseType;
 struct Ident;
 struct Callable;
+struct CallParamList;
 
 #define FINAL_AST_NODE_CLS \
 	virtual void show(std::ostream& os) const; \
 	virtual void initEnv(spt<Env> parentEnv); \
 	virtual void refIdents(); \
-	virtual void setTypes();
+	virtual void setTypes(); \
+	virtual void emitAsm(spt<AsmProg>, spt<AsmFunc>);
 
 enum BinaryOperation {
 	OpEq, OpNotEq, OpLower, OpLowerEq, OpGreater, OpGreaterEq,
@@ -46,10 +49,11 @@ class Ast;
 
 class Env : public std::enable_shared_from_this<Env> {
 protected:
-	std::map<std::string, spt<Declaration>> declarations;
-	std::map<std::string, std::vector<spt<DefStruct>>> membersToStr;
+	std::map<std::string, spt<DefStruct>> memberToStruct;
 	spt<Env> from;
+	int lastTypeId;
 public:
+	std::map<std::string, spt<Declaration>> declarations;
 	spt<DefFunc> inFunction;
 	Env(spt<Env> from = nullptr);
 	spt<Env> child();
@@ -67,7 +71,8 @@ public:
 	spt<Ident> getInitialVar(spt<Ident> name);
 	spt<Ident> getOrCreateVar(spt<Ident> name, bool force = false);
 
-	std::vector<spt<DefStruct>> structsWith(spt<Ident> name);
+	spt<DefStruct> structWith(spt<Ident> name);
+	void setTypeId(spt<Type> tpPt);
 
 	friend class Ast;
 };
@@ -83,6 +88,7 @@ public:
 	void addDeclaration(spt<Declaration> decl);
 	friend std::ostream& operator<<(std::ostream& os, const Ast& ast);
 	void initEnvTypes();
+	void emitAsm(spt<AsmProg>);
 };
 
 /*
@@ -103,12 +109,14 @@ struct AstNode : public std::enable_shared_from_this<AstNode> {
 		return pt;
 	}
 
+
 	virtual void show(std::ostream& os) const = 0;
 	inline virtual ~AstNode() {};
 
 	virtual void initEnv(spt<Env> parentEnv) = 0;
 	virtual void refIdents() = 0;
 	virtual void setTypes() = 0;
+	virtual void emitAsm(spt<AsmProg>, spt<AsmFunc>) = 0;
 };
 
 
@@ -120,6 +128,8 @@ struct Callable {
 	virtual spt<Type> getReturnType() = 0;
 	virtual bool matchArgs(std::vector<spt<Type>>& callTypes) = 0;
 	virtual void checkCallArgs(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes) = 0;
+	virtual void emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParamList> args) = 0;
+	void asmCheckArgType(spt<AsmProg> prog, spt<AsmFunc> func, spt<Expr> arg, spt<Type> mType);
 };
 struct Declaration : public AstNode {
 	using AstNode::AstNode;
@@ -128,7 +138,9 @@ struct Declaration : public AstNode {
 struct Type : public Declaration {
 	using Declaration::Declaration;
 	spt<Ident> name;
+	int typeId;
 	inline Type(const YYLTYPE loc, spt<Ident> name) : Declaration(loc), name(name) {};
+	bool isKnown();
 };
 struct BaseType : public Type {
 	PrimitiveType type;
@@ -146,10 +158,16 @@ struct BaseType : public Type {
 */
 struct Expr : public Declaration {
 	spt<Type> type;
+	bool _forceStoreType;
+
+	inline bool forceStore() { return _forceStoreType || !this->type->isKnown(); }
+	spt<AsmArg> getAsmType();
 
 	using Declaration::Declaration;
+	inline Expr(const YYLTYPE loc) : Declaration(loc), _forceStoreType(false) {}
 	void mergeType(spt<Type> type2);
 };
+
 struct ExprBlock : public Expr {
 	using Expr::Expr;
 	std::deque<spt<Expr>> expressions;
@@ -170,13 +188,16 @@ struct LValue : public Expr {
 struct Ident : public LValue {
 	std::string val;
 	spt<Ident> setAt; // For a variable
+	spt<AsmLoc> asmLoc;
 	bool initialized;
 	bool isMutable;
 
-	inline Ident(const YYLTYPE loc, std::string val) : LValue(loc), val(val), setAt(nullptr) {
+	inline Ident(const YYLTYPE loc, std::string val)
+		: LValue(loc), val(val), setAt(nullptr), asmLoc(nullptr) {
 		initialized = false;
 		isMutable = true;
 	};
+	spt<AsmArg> getAsmTypeRef(spt<AsmLoc> loc);
 	FINAL_AST_NODE_CLS
 };
 
@@ -252,6 +273,7 @@ struct UnaryOp : public Expr {
 };
 struct DotOp : public LValue {
 	spt<Expr> object;
+	spt<DefStruct> structType;
 	spt<Ident> member;
 
 	inline DotOp(const YYLTYPE loc, spt<Expr> object, spt<Ident> member)
@@ -323,6 +345,7 @@ struct DefStruct : public StructType, public Callable {
 	inline virtual spt<Type> getReturnType() { return shared_as<Type>(); };
 	virtual bool matchArgs(std::vector<spt<Type>>& callTypes);
 	virtual void checkCallArgs(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes);
+	virtual void emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParamList> args);
 	std::string getSignature();
 
 	FINAL_AST_NODE_CLS
@@ -330,6 +353,7 @@ struct DefStruct : public StructType, public Callable {
 
 struct DefFunc : public Declaration, public Callable {
 	spt<Ident> name, typeName;
+	std::string asmName;
 	spt<Type> returnType;
 	bool isMain;
 	ArgumentList args;
@@ -343,6 +367,7 @@ struct DefFunc : public Declaration, public Callable {
 	inline virtual spt<Type> getReturnType() { return returnType; };
 	virtual bool matchArgs(std::vector<spt<Type>>& callTypes);
 	virtual void checkCallArgs(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes);
+	virtual void emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParamList> args);
 	std::string getSignature();
 
 	FINAL_AST_NODE_CLS
@@ -350,12 +375,14 @@ struct DefFunc : public Declaration, public Callable {
 
 struct FuncDispacher : public Declaration, public Callable {
 	spt<Type> returnType;
+	std::string asmName;
 	std::vector<spt<DefFunc>> functions;
 	inline FuncDispacher() : Declaration(NO_LOC), returnType(nullptr) {};
 
 	virtual spt<Type> getReturnType();
 	virtual bool matchArgs(std::vector<spt<Type>>& callTypes);
 	virtual void checkCallArgs(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes);
+	virtual void emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParamList> args);
 	spt<Callable> tryPreDispatch(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes);
 	std::string getSignature();
 	void checkAmbiguous();

@@ -6,7 +6,7 @@
 */
 spt<Ident> identAny;
 
-Env::Env(spt<Env> fromVal) : from(fromVal) {
+Env::Env(spt<Env> fromVal) : from(fromVal), lastTypeId(0) {
 	if (from) {
 		inFunction = from->inFunction;
 	}
@@ -31,23 +31,23 @@ void Env::add(spt<Ident> name, spt<Declaration> decl) {
 	if (strPtr) {
 		for (auto m : strPtr->members) {
 			std::string name = m->name->val;
-			if (membersToStr.count(name)) {
-				membersToStr[name] = {};
+			if (memberToStruct.count(name)) {
+				throw JError(m->loc, "The field name " + name + " is already used in this file");
 			}
-			membersToStr[name].push_back(strPtr);
+			memberToStruct[name] = strPtr;
 		}
 	}
 
 	declarations[name->val] = decl;
 }
-std::vector<spt<DefStruct>> Env::structsWith(spt<Ident> name) {
+spt<DefStruct> Env::structWith(spt<Ident> name) {
 	if (!from) {
-		if (membersToStr.count(name->val)) {
-			return membersToStr[name->val];
+		if (memberToStruct.count(name->val)) {
+			return memberToStruct[name->val];
 		}
-		return {};
+		throw JError(name->loc, "No structure with a member " + name->val);
 	}
-	return from->structsWith(name);
+	return from->structWith(name);
 }
 void Env::declFunction(spt<Ident> name, spt<DefFunc> decl) {
 	if (isNameLocal(name)) {
@@ -134,9 +134,9 @@ spt<Ident> Env::getOrCreateVar(spt<Ident> name, bool force) {
 
 Ast::Ast() : env(new Env()) {
 
+	declarations.push_back(sptOf(new BaseType("Nothing", TNothing)));
 	auto typeAny = sptOf(new BaseType("Any", TAny));
 	declarations.push_back(typeAny);
-	declarations.push_back(sptOf(new BaseType("Nothing", TNothing)));
 	declarations.push_back(sptOf(new BaseType("Int64", TInt64)));
 	declarations.push_back(sptOf(new BaseType("Bool", TBool)));
 	declarations.push_back(sptOf(new BaseType("String", TString)));
@@ -173,6 +173,7 @@ void Ast::addDeclaration(spt<Declaration> decl) {
 		mainFunc->body->add(ifExpr);
 	}
 	else {
+		// Can't happen unless I make important incompatible changes and forgot to change this function
 		throw ParseError(decl->loc, "Can't cast Declaration [INTERNAL]");
 	}
 }
@@ -180,6 +181,9 @@ void Ast::addDeclaration(spt<Declaration> decl) {
 /*
 	Expressions
 */
+bool Type::isKnown() {
+	return name->val != "Any";
+}
 
 spt<Type> mergeTypes(spt<Type> type1, spt<Type> type2, spt<Env> env) {
 	if (type2) {
@@ -268,6 +272,18 @@ std::string DefStruct::getSignature() {
 	return name->val + typesToSig(members);
 }
 
+void Callable::asmCheckArgType(spt<AsmProg> prog, spt<AsmFunc> func, spt<Expr> arg, spt<Type> mType) {
+	if (mType->isKnown() && !arg->type->isKnown()) {
+		// Value must be the current value
+		auto labelIsOk = sptOf(new AsmIns(asmNop, {}));
+		func->add(asmCmp, { intArg(mType->typeId), regArg(rbx) });
+		func->add(asmJumpIf, { flagArg("e"), labelArg(labelIsOk->getLabel(prog)) });
+		func->abort(prog, "Wrong argument type");
+		func->add(labelIsOk);
+	}
+}
+
+
 // Call functions
 
 bool DefFunc::matchArgs(std::vector<spt<Type>>& callTypes) {
@@ -350,31 +366,6 @@ void FuncDispacher::checkAmbiguous() {
 }
 
 spt<Callable> FuncDispacher::tryPreDispatch(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes) {
-	// std::vector<spt<DefFunc>> funcMatch;
-	// for (auto& f : functions) {
-	// 	if (f->matchArgs(callTypes)) {
-	// 		funcMatch.push_back(f);
-	// 	}
-	// }
-	// for (int i = 0; i < (int)funcMatch.size(); i++) {
-	// 	for (int j = i + 1; j < (int)funcMatch.size(); j++) {
-	// 		bool isAmbiguous = true;
-	// 		for (int iArg = 0; iArg < (int)callTypes.size(); iArg++) {
-	// 			bool dismatch = funcMatch[i]->args[iArg]->argType->name !=
-	// 				funcMatch[j]->args[iArg]->argType->name;
-	// 			bool canBeSolved = callTypes[iArg]->name->val == "Any";
-	// 			if (dismatch && canBeSolved) {
-	// 				isAmbiguous = false;
-	// 				break;
-	// 			}
-	// 		}
-	// 		if (isAmbiguous) {
-	// 			throw JError(atLoc, "Call to " + functions[0]->name->val + typesToSig(callTypes) + " is ambiguous");
-	// 		}
-	// 	}
-	// }
-	// return shared_as<FuncDispacher>();
-
 	std::vector<spt<DefFunc>> funcMatch;
 	for (auto& f : functions) {
 		if (f->matchArgs(callTypes)) {
@@ -503,17 +494,14 @@ void BaseType::show(std::ostream& os) const {
 void Ident::show(std::ostream& os) const {
 	os << val;
 	showType(os, type);
-	// os << "{" << loc.first_column << "-" << loc.last_column << "|" << loc.first_line << "}";
 }
 void IntConst::show(std::ostream& os) const {
 	os << value;
 	showType(os, type);
-	// os << "{" << loc.first_column << "-" << loc.last_column << "|" << loc.first_line << "}";
 }
 void Assignment::show(std::ostream& os) const {
 	os << "(" << lvalue << " = " << rvalue << ")";
 	showType(os, type);
-	// os << "{" << loc.first_column << "-" << loc.last_column << "|" << loc.first_line << "}";
 }
 void StrConst::show(std::ostream& os) const {
 	os << '"' << value << '"';
@@ -544,7 +532,6 @@ void CallParamList::show(std::ostream& os) const {
 		prev = true;
 		exp->show(os);
 	}
-	// showType(os, type);
 }
 void CallFunction::show(std::ostream& os) const {
 	os << funcName->val << "(" << args << ")";
