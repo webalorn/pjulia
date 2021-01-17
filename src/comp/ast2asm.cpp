@@ -4,10 +4,9 @@
 void Ast::emitAsm(spt<AsmProg> prog) {
 	spt<AsmPrimitiveCode> primitiveCode = sptOf(new AsmPrimitiveCode());
 	for (auto declPair : env->declarations) {
-		// std::cerr << "===== Emit for\n";
-		// declPair.second->show(std::cerr);
-		// std::cerr << "\n";
-		declPair.second->emitAsm(prog, primitiveCode);
+		if (std::dynamic_pointer_cast<Callable>(declPair.second)) {
+			declPair.second->emitAsm(prog, primitiveCode);
+		}
 	}
 	prog->add(primitiveCode);
 }
@@ -108,7 +107,7 @@ void ExprBlock::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 		child->emitAsm(prog, func);
 	}
 }
-void BaseType::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {}
+void BaseType::emitAsm(spt<AsmProg>, spt<AsmFunc>) {}
 void Ident::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	ensureVarIsSet(prog, func, shared_as<Ident>());
 	if (getType()->name->val != "Nothing") {
@@ -121,7 +120,7 @@ void Ident::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 		func->add(asmMov, { setAt->asmLoc->withOffset(1), regArg(rbx) });
 	}
 }
-void IntConst::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
+void IntConst::emitAsm(spt<AsmProg>, spt<AsmFunc> func) {
 	func->add(asmMov, { intArg(this->value), regArg(rax) });
 }
 void Assignment::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
@@ -164,7 +163,7 @@ void StrConst::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	std::string label = prog->store(this->value);
 	func->add(asmLoadAddr, { labelArg(label), regArg(rax) });
 }
-void BoolConst::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
+void BoolConst::emitAsm(spt<AsmProg>, spt<AsmFunc> func) {
 	func->add(asmMov, { intArg(value), regArg(rax) });
 }
 
@@ -200,10 +199,10 @@ void BinOp::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	right->emitAsm(prog, func);
 
 	// Type check
-	spt<AsmArg> typeLeft = left->getType()->isKnown() ? (spt<AsmArg>)intArg(left->getType()->typeId)
+	bool leftKnown = left->getType()->isKnown();
+	spt<AsmArg> typeLeft = leftKnown ? (spt<AsmArg>)intArg(left->getType()->typeId)
 		: sptOf(new AsmOffset(1, rsp));
 
-	bool leftKnown = left->getType()->isKnown();
 	if (op == OpAnd || op == OpOr) {
 		typeLeft = intArg(env->getType("Bool")->typeId);
 		leftKnown = true;
@@ -235,23 +234,49 @@ void BinOp::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	}
 
 	// Compute result
-
-	// TODO : == and != for structs !!!!!
-
 	auto valLeft = sptOf(new AsmOffset(0, rsp));
 	auto valRight = regArg(rax);
-	bool depopEnd = true; // Don't work for some operations
+	bool depopEnd = true;
+
+	/*
+	// Special case for structure comparisons
+	spt<Type> opsType = left->getType();
+	if (!opsType->isKnown()) opsType = right->getType();
+
+	if ((op == OpEq || op == OpNotEq) && (!opsType->isKnown() || opsType->isStruct())) {
+		auto opSkipStructComp = sptOf(new AsmIns(asmNop, {}));
+		func->add(asmMov, { valLeft, regArg(rdi) });
+
+		if (opsType->isStruct()) {
+			std::string structName = std::dynamic_pointer_cast<DefStruct>(opsType)->name->val;
+			func->add(asmCall, { labelArg("eq_struct_" + structName) });
+		}
+		else {
+			if (right->type->isKnown()) {
+				func->add(asmMov, { typeLeft, regArg(rbx) });
+			}
+			func->add(asmCmp, { intArg(5), regArg(rbx) }); // 5 = First custom type id
+			func->add(asmJumpIf, { flagArg("l"), labelArg(opSkipStructComp->getLabel(prog)) });
+			func->add(asmCall, { labelArg("eq_any_struct") });
+		}
+		if (op == OpNotEq) {
+			func->add(asmBitXor, { intArg(1), regArg(rax) });
+		}
+		func->add(asmJump, { labelArg(opJumpAfter->getLabel(prog)) });
+		func->add(opSkipStructComp);
+	} */
+
 	if (op == OpEq || op == OpNotEq || op == OpLower || op == OpLowerEq || op == OpGreater || op == OpGreaterEq) {
 		func->add(asmCmp, { valLeft, valRight });
 
-		if (op == OpEq) func->add(asmSet, { flagArg("e"), regArg(r10b) });
-		if (op == OpNotEq) func->add(asmSet, { flagArg("ne"), regArg(r10b) });
-		if (op == OpLower) func->add(asmSet, { flagArg("g"), regArg(r10b) });
-		if (op == OpLowerEq) func->add(asmSet, { flagArg("ge"), regArg(r10b) });
-		if (op == OpGreater) func->add(asmSet, { flagArg("l"), regArg(r10b) });
-		if (op == OpGreaterEq) func->add(asmSet, { flagArg("le"), regArg(r10b) });
+		if (op == OpEq) func->add(asmSet, { flagArg("e"), regArg(r12b) });
+		if (op == OpNotEq) func->add(asmSet, { flagArg("ne"), regArg(r12b) });
+		if (op == OpLower) func->add(asmSet, { flagArg("g"), regArg(r12b) });
+		if (op == OpLowerEq) func->add(asmSet, { flagArg("ge"), regArg(r12b) });
+		if (op == OpGreater) func->add(asmSet, { flagArg("l"), regArg(r12b) });
+		if (op == OpGreaterEq) func->add(asmSet, { flagArg("le"), regArg(r12b) });
 
-		func->add(asmMov, { regArg(r10), regArg(rax) });
+		func->add(asmMov, { regArg(r12), regArg(rax) });
 	}
 	if (op == OpPlus) func->add(asmAdd, { valLeft, valRight });
 	if (op == OpMinus) {
@@ -319,7 +344,7 @@ void DotOp::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	func->add(asmMov, { loc, regArg(rax) });
 }
 
-void CallParamList::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
+void CallParamList::emitAsm(spt<AsmProg>, spt<AsmFunc>) {
 	throw UsageError("Should not be called [CallParamList]");
 }
 
@@ -390,9 +415,7 @@ void CallFunction::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 }
 void ReturnVal::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	value->emitAsm(prog, func);
-	// if (value->getType()->isKnown() && func->needReturnType) {
 	func->add(asmMov, { value->getAsmType(), regArg(rbx) });
-	// }
 	func->add(asmJump, { labelArg(func->footerOp->getLabel(prog)) });
 }
 void FlowFor::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
@@ -412,7 +435,6 @@ void FlowFor::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	ensureType(prog, func, { env->getType("Int64")->typeId }, endAt);
 	func->add(asmPushq, { regArg(rax) });
 
-	// func->add(asmCmp, { sptOf(new AsmOffset(0, rsp)), regArg(rax) });
 	func->add(asmCmp, { regArg(rax), varLoc });
 	func->add(asmJumpIf, { flagArg("g"), labelArg(labelEnd->getLabel(prog)) });
 
@@ -463,7 +485,7 @@ void FlowIfElse::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	func->add(labelEnd);
 }
 
-void Argument::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
+void Argument::emitAsm(spt<AsmProg>, spt<AsmFunc> func) {
 	name->asmLoc = sptOf(new AsmOffset(func->argOffset));
 	func->argOffset += 2;
 }

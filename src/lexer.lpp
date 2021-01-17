@@ -70,8 +70,6 @@
 	}
 	#define YY_USER_ACTION updateYylloc();
 
-// %option bison-locations
-// \"([ -~]{-}[\\\"]|\\\\|\\\"|\\n|\\t)*\" {
 %}
 %option noyywrap
 %%

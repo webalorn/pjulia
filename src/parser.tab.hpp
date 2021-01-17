@@ -115,7 +115,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 48 "src/parser.ypp"
+#line 47 "src/parser.ypp"
 
 	// Input types
 	char *repr;

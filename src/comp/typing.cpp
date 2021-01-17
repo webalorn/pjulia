@@ -62,7 +62,7 @@ void Ident::setTypes() {
 		type = setAt->type;
 	}
 	else {
-		type = env->getType("Any"); // TODO ??
+		type = env->getType("Any");
 	}
 }
 void IntConst::setTypes() {
@@ -80,7 +80,6 @@ void Assignment::setTypes() {
 	}
 	lvalue->setTypes();
 	if (!leftIdent) {
-		// lvalue->type->name->val != "Any"
 		auto leftDot = std::dynamic_pointer_cast<DotOp>(lvalue);
 		auto str = std::dynamic_pointer_cast<DefStruct>(leftDot->object->type);
 		if (!typesMatch(leftDot->type, rvalue->type)) {
@@ -197,10 +196,6 @@ void FlowIfElse::setTypes() {
 	assertType(condition, { TBool });
 	type = ifTrue->type;
 	mergeType(ifFalse->type);
-	// if (!type->isKnown()) {
-	// 	ifTrue->_forceStoreType = true;
-	// 	ifFalse->_forceStoreType = true;
-	// }
 }
 
 void Argument::setTypes() {

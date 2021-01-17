@@ -42,7 +42,6 @@
 %}
 %locations
 %parse-param {Ast *ast}
-// %define parse.lac full
 %define parse.error verbose
 
 %union {

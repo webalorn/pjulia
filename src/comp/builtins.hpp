@@ -11,8 +11,6 @@ struct BuiltinFunc : public Declaration, public Callable {
 
 	virtual void checkCallArgs(YYLTYPE atLoc, std::vector<spt<Type>>& callTypes);
 	virtual std::string getSignature() = 0;
-	virtual void emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParamList> args);
-
 	FINAL_AST_NODE_CLS
 };
 
@@ -42,6 +40,19 @@ struct BuiltinDiv : public BuiltinFunc {
 
 	virtual void emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParamList> args);
 };
+
+// struct AbstractBuiltin : public BuiltinFunc {
+// 	inline AbstractBuiltin(std::string name) : BuiltinFunc("@" + name) {}
+// 	inline virtual spt<Type> getReturnType() { return env->getType("Any"); };
+// 	virtual std::string getSignature();
+// 	virtual bool matchArgs(std::vector<spt<Type>>& callTypes);
+// 	virtual void emitAsmCall(spt<AsmProg> prog, spt<AsmFunc> func, spt<CallParamList> args);
+// };
+
+// struct BuiltinEqual : public AbstractBuiltin {
+// 	inline BuiltinEqual() : AbstractBuiltin("equal") {}
+// 	void emitAsm(spt<AsmProg> prog, spt<AsmFunc> func);
+// };
 
 
 #endif // BUILTINS_HPP

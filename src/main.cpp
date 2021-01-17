@@ -18,7 +18,6 @@ std::string getAsmFilename(std::string filename) {
 }
 
 int main(int argc, char** argv) {
-	// yydebug = 1;
 	std::string filename;
 	try {
 		ArgParser parser;
@@ -47,7 +46,6 @@ int main(int argc, char** argv) {
 		}
 
 		/* Set types */
-		// strictTypeMode = !(*fTypeOnly);
 		strictTypeMode = false;
 		ast.initEnvTypes();
 

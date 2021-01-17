@@ -558,14 +558,14 @@ static const yytype_int8 yytranslate[] =
   /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_int16 yyrline[] =
 {
-       0,   116,   116,   119,   124,   129,   130,   131,   136,   137,
-     141,   142,   143,   146,   147,   151,   152,   153,   160,   161,
-     162,   173,   182,   183,   190,   199,   200,   201,   202,   203,
-     213,   218,   221,   227,   228,   229,   230,   231,   232,   233,
-     234,   235,   236,   237,   238,   239,   243,   244,   248,   249,
-     256,   257,   260,   261,   265,   266,   267,   270,   276,   277,
-     280,   288,   289,   293,   301,   302,   303,   307,   315,   325,
-     326,   329,   333
+       0,   115,   115,   118,   123,   128,   129,   130,   135,   136,
+     140,   141,   142,   145,   146,   150,   151,   152,   159,   160,
+     161,   172,   181,   182,   189,   198,   199,   200,   201,   202,
+     212,   217,   220,   226,   227,   228,   229,   230,   231,   232,
+     233,   234,   235,   236,   237,   238,   242,   243,   247,   248,
+     255,   256,   259,   260,   264,   265,   266,   269,   275,   276,
+     279,   287,   288,   292,   300,   301,   302,   306,   314,   324,
+     325,   328,   332
 };
 #endif
 
@@ -1658,13 +1658,13 @@ yyreduce:
   switch (yyn)
     {
   case 2: /* prog_file: prog END_FILE  */
-#line 116 "src/parser.ypp"
+#line 115 "src/parser.ypp"
                          {}
 #line 1664 "src/parser.tab.cpp"
     break;
 
   case 3: /* prog: prog decl  */
-#line 119 "src/parser.ypp"
+#line 118 "src/parser.ypp"
                   {
 		if ((yyvsp[0].astDeclaration)) {
 			ast->addDeclaration(sptOf((yyvsp[0].astDeclaration)));
@@ -1674,85 +1674,85 @@ yyreduce:
     break;
 
   case 4: /* prog: %empty  */
-#line 124 "src/parser.ypp"
+#line 123 "src/parser.ypp"
                  {}
 #line 1680 "src/parser.tab.cpp"
     break;
 
   case 5: /* decl: maybeExpr  */
-#line 129 "src/parser.ypp"
+#line 128 "src/parser.ypp"
                      { (yyval.astDeclaration) = (yyvsp[0].astExpr); }
 #line 1686 "src/parser.tab.cpp"
     break;
 
   case 6: /* decl: structRule  */
-#line 130 "src/parser.ypp"
+#line 129 "src/parser.ypp"
                      { (yyval.astDeclaration) = (yyvsp[0].astStructDef); }
 #line 1692 "src/parser.tab.cpp"
     break;
 
   case 7: /* decl: funcRule  */
-#line 131 "src/parser.ypp"
+#line 130 "src/parser.ypp"
                      { (yyval.astDeclaration) = (yyvsp[0].astFuncDef); }
 #line 1698 "src/parser.tab.cpp"
     break;
 
   case 8: /* maybeExpr: ';'  */
-#line 136 "src/parser.ypp"
+#line 135 "src/parser.ypp"
             { (yyval.astExpr) = nullptr; }
 #line 1704 "src/parser.tab.cpp"
     break;
 
   case 9: /* maybeExpr: expr ';'  */
-#line 137 "src/parser.ypp"
+#line 136 "src/parser.ypp"
                    { (yyval.astExpr) = (yyvsp[-1].astExpr); }
 #line 1710 "src/parser.tab.cpp"
     break;
 
   case 10: /* exprBlock: %empty  */
-#line 141 "src/parser.ypp"
+#line 140 "src/parser.ypp"
                            { (yyval.astExprBlock) = new ExprBlock((yyloc)); }
 #line 1716 "src/parser.tab.cpp"
     break;
 
   case 11: /* exprBlock: ';' exprBlock  */
-#line 142 "src/parser.ypp"
+#line 141 "src/parser.ypp"
                            { (yyval.astExprBlock) = (yyvsp[0].astExprBlock); (yyval.astExprBlock)->loc = (yyloc); }
 #line 1722 "src/parser.tab.cpp"
     break;
 
   case 12: /* exprBlock: exprBlocLeastOne  */
-#line 143 "src/parser.ypp"
+#line 142 "src/parser.ypp"
                            { (yyval.astExprBlock) = (yyvsp[0].astExprBlock); (yyval.astExprBlock)->loc = (yyloc); }
 #line 1728 "src/parser.tab.cpp"
     break;
 
   case 13: /* exprBlocLeastOne: expr  */
-#line 146 "src/parser.ypp"
+#line 145 "src/parser.ypp"
              { (yyval.astExprBlock) = new ExprBlock((yyloc)); (yyval.astExprBlock)->add((yyvsp[0].astExpr)); }
 #line 1734 "src/parser.tab.cpp"
     break;
 
   case 14: /* exprBlocLeastOne: expr ';' exprBlock  */
-#line 147 "src/parser.ypp"
+#line 146 "src/parser.ypp"
                               { (yyval.astExprBlock) = (yyvsp[0].astExprBlock); (yyval.astExprBlock)->add_front((yyvsp[-2].astExpr)); (yyval.astExprBlock)->loc = (yyloc); }
 #line 1740 "src/parser.tab.cpp"
     break;
 
   case 15: /* expr: lvalue  */
-#line 151 "src/parser.ypp"
+#line 150 "src/parser.ypp"
                { (yyval.astExpr) = (yyvsp[0].astLvalue); }
 #line 1746 "src/parser.tab.cpp"
     break;
 
   case 16: /* expr: INT  */
-#line 152 "src/parser.ypp"
+#line 151 "src/parser.ypp"
               { (yyval.astExpr) = new IntConst((yyloc), (yyvsp[0].repr)); free((yyvsp[0].repr)); }
 #line 1752 "src/parser.tab.cpp"
     break;
 
   case 17: /* expr: STRING  */
-#line 153 "src/parser.ypp"
+#line 152 "src/parser.ypp"
                  {
 		std::string value((yyvsp[0].repr)); // Still need to remove ""
 		StrConst* s = new StrConst((yyloc), std::string((yyvsp[0].repr), 1, value.size()-2));
@@ -1764,19 +1764,19 @@ yyreduce:
     break;
 
   case 18: /* expr: TRUE  */
-#line 160 "src/parser.ypp"
+#line 159 "src/parser.ypp"
                { (yyval.astExpr) = new BoolConst((yyloc), true); }
 #line 1770 "src/parser.tab.cpp"
     break;
 
   case 19: /* expr: FALSE  */
-#line 161 "src/parser.ypp"
+#line 160 "src/parser.ypp"
                 { (yyval.astExpr) = new BoolConst((yyloc), false); }
 #line 1776 "src/parser.tab.cpp"
     break;
 
   case 20: /* expr: INT_IDENT  */
-#line 162 "src/parser.ypp"
+#line 161 "src/parser.ypp"
                     {
 		char* splitPt = (yyvsp[0].repr);
 		while ('0' <= *splitPt && *splitPt <= '9') {
@@ -1792,7 +1792,7 @@ yyreduce:
     break;
 
   case 21: /* expr: INT_LEFT_PAR exprBlocLeastOne ')'  */
-#line 173 "src/parser.ypp"
+#line 172 "src/parser.ypp"
                                             {
 		std::string intPart((yyvsp[-2].repr));
 		intPart.pop_back(); // Remove '('
@@ -1806,13 +1806,13 @@ yyreduce:
     break;
 
   case 22: /* expr: '(' exprBlocLeastOne ')'  */
-#line 182 "src/parser.ypp"
+#line 181 "src/parser.ypp"
                                    { (yyval.astExpr) = (yyvsp[-1].astExprBlock); }
 #line 1812 "src/parser.tab.cpp"
     break;
 
   case 23: /* expr: '(' expr RIGHT_PAR_IDENT  */
-#line 183 "src/parser.ypp"
+#line 182 "src/parser.ypp"
                                    {
 		(yyval.astExpr) = new BinOp((yyloc), OpTimes,
 			sptOf((yyvsp[-1].astExpr)),
@@ -1824,7 +1824,7 @@ yyreduce:
     break;
 
   case 24: /* expr: IDENT_LEFT_PAR callArgList ')'  */
-#line 190 "src/parser.ypp"
+#line 189 "src/parser.ypp"
                                          {
 		std::string indentPart((yyvsp[-2].repr));
 		indentPart.pop_back(); // Remove '('
@@ -1838,31 +1838,31 @@ yyreduce:
     break;
 
   case 25: /* expr: RETURN expr  */
-#line 199 "src/parser.ypp"
+#line 198 "src/parser.ypp"
                                         { (yyval.astExpr) = new ReturnVal((yyloc), sptOf((yyvsp[0].astExpr))); }
 #line 1844 "src/parser.tab.cpp"
     break;
 
   case 26: /* expr: RETURN  */
-#line 200 "src/parser.ypp"
+#line 199 "src/parser.ypp"
                                      { (yyval.astExpr) = new ReturnVal((yyloc), nullptr); }
 #line 1850 "src/parser.tab.cpp"
     break;
 
   case 27: /* expr: binOpRule  */
-#line 201 "src/parser.ypp"
+#line 200 "src/parser.ypp"
                       { (yyval.astExpr) = (yyvsp[0].astBinOp); }
 #line 1856 "src/parser.tab.cpp"
     break;
 
   case 28: /* expr: unaryOpRule  */
-#line 202 "src/parser.ypp"
+#line 201 "src/parser.ypp"
                       { (yyval.astExpr) = (yyvsp[0].astUnaryOp); }
 #line 1862 "src/parser.tab.cpp"
     break;
 
   case 29: /* expr: expr '=' expr  */
-#line 203 "src/parser.ypp"
+#line 202 "src/parser.ypp"
                         { // Workaround because bison does strange things with %prec
 		LValue* lval = dynamic_cast<LValue*>((yyvsp[-2].astExpr));
 		if (lval == nullptr) {
@@ -1875,7 +1875,7 @@ yyreduce:
     break;
 
   case 30: /* expr: FOR IDENT '=' expr ':' expr exprBlock END  */
-#line 213 "src/parser.ypp"
+#line 212 "src/parser.ypp"
                                                     {
 		(yyval.astExpr) = new FlowFor((yyloc), sptOf(new Ident((yylsp[-6]), (yyvsp[-6].repr))), sptOf((yyvsp[-4].astExpr)),
 			sptOf((yyvsp[-2].astExpr)), sptOf((yyvsp[-1].astExprBlock)));
@@ -1885,7 +1885,7 @@ yyreduce:
     break;
 
   case 31: /* expr: WHILE expr exprBlock END  */
-#line 218 "src/parser.ypp"
+#line 217 "src/parser.ypp"
                                    {
 		(yyval.astExpr) = new FlowWhile((yyloc), sptOf((yyvsp[-2].astExpr)), sptOf((yyvsp[-1].astExprBlock)));
 	}
@@ -1893,7 +1893,7 @@ yyreduce:
     break;
 
   case 32: /* expr: IF expr exprBlock elseRule  */
-#line 221 "src/parser.ypp"
+#line 220 "src/parser.ypp"
                                      {
 		(yyval.astExpr) = new FlowIfElse((yyloc), sptOf((yyvsp[-2].astExpr)), sptOf((yyvsp[-1].astExprBlock)), sptOf((yyvsp[0].astExpr)));
 	}
@@ -1901,103 +1901,103 @@ yyreduce:
     break;
 
   case 33: /* binOpRule: expr '<' expr  */
-#line 227 "src/parser.ypp"
+#line 226 "src/parser.ypp"
                                    { (yyval.astBinOp) = newOp((yyloc), OpLower, (yyvsp[-2].astExpr), (yyvsp[0].astExpr));   }
 #line 1907 "src/parser.tab.cpp"
     break;
 
   case 34: /* binOpRule: expr '>' expr  */
-#line 228 "src/parser.ypp"
+#line 227 "src/parser.ypp"
                                    { (yyval.astBinOp) = newOp((yyloc), OpGreater, (yyvsp[-2].astExpr), (yyvsp[0].astExpr)); }
 #line 1913 "src/parser.tab.cpp"
     break;
 
   case 35: /* binOpRule: expr '+' expr  */
-#line 229 "src/parser.ypp"
+#line 228 "src/parser.ypp"
                                    { (yyval.astBinOp) = newOp((yyloc), OpPlus, (yyvsp[-2].astExpr), (yyvsp[0].astExpr));    }
 #line 1919 "src/parser.tab.cpp"
     break;
 
   case 36: /* binOpRule: expr '-' expr  */
-#line 230 "src/parser.ypp"
+#line 229 "src/parser.ypp"
                                    { (yyval.astBinOp) = newOp((yyloc), OpMinus, (yyvsp[-2].astExpr), (yyvsp[0].astExpr));   }
 #line 1925 "src/parser.tab.cpp"
     break;
 
   case 37: /* binOpRule: expr '*' expr  */
-#line 231 "src/parser.ypp"
+#line 230 "src/parser.ypp"
                                    { (yyval.astBinOp) = newOp((yyloc), OpTimes, (yyvsp[-2].astExpr), (yyvsp[0].astExpr));   }
 #line 1931 "src/parser.tab.cpp"
     break;
 
   case 38: /* binOpRule: expr '%' expr  */
-#line 232 "src/parser.ypp"
+#line 231 "src/parser.ypp"
                                    { (yyval.astBinOp) = newOp((yyloc), OpMod, (yyvsp[-2].astExpr), (yyvsp[0].astExpr));     }
 #line 1937 "src/parser.tab.cpp"
     break;
 
   case 39: /* binOpRule: expr '^' expr  */
-#line 233 "src/parser.ypp"
+#line 232 "src/parser.ypp"
                                    { (yyval.astBinOp) = newOp((yyloc), OpPower, (yyvsp[-2].astExpr), (yyvsp[0].astExpr));   }
 #line 1943 "src/parser.tab.cpp"
     break;
 
   case 40: /* binOpRule: expr OP_EQ expr  */
-#line 234 "src/parser.ypp"
+#line 233 "src/parser.ypp"
                                    { (yyval.astBinOp) = newOp((yyloc), OpEq, (yyvsp[-2].astExpr), (yyvsp[0].astExpr));      }
 #line 1949 "src/parser.tab.cpp"
     break;
 
   case 41: /* binOpRule: expr OP_NEQ expr  */
-#line 235 "src/parser.ypp"
+#line 234 "src/parser.ypp"
                                    { (yyval.astBinOp) = newOp((yyloc), OpNotEq, (yyvsp[-2].astExpr), (yyvsp[0].astExpr));   }
 #line 1955 "src/parser.tab.cpp"
     break;
 
   case 42: /* binOpRule: expr OP_LOWER_EQ expr  */
-#line 236 "src/parser.ypp"
+#line 235 "src/parser.ypp"
                                    { (yyval.astBinOp) = newOp((yyloc), OpLowerEq, (yyvsp[-2].astExpr), (yyvsp[0].astExpr)); }
 #line 1961 "src/parser.tab.cpp"
     break;
 
   case 43: /* binOpRule: expr OP_GREATER_EQ expr  */
-#line 237 "src/parser.ypp"
+#line 236 "src/parser.ypp"
                                    { (yyval.astBinOp) = newOp((yyloc), OpGreaterEq, (yyvsp[-2].astExpr), (yyvsp[0].astExpr)); }
 #line 1967 "src/parser.tab.cpp"
     break;
 
   case 44: /* binOpRule: expr OP_AND expr  */
-#line 238 "src/parser.ypp"
+#line 237 "src/parser.ypp"
                                    { (yyval.astBinOp) = newOp((yyloc), OpAnd, (yyvsp[-2].astExpr), (yyvsp[0].astExpr));     }
 #line 1973 "src/parser.tab.cpp"
     break;
 
   case 45: /* binOpRule: expr OP_OR expr  */
-#line 239 "src/parser.ypp"
+#line 238 "src/parser.ypp"
                                    { (yyval.astBinOp) = newOp((yyloc), OpOr, (yyvsp[-2].astExpr), (yyvsp[0].astExpr));     }
 #line 1979 "src/parser.tab.cpp"
     break;
 
   case 46: /* unaryOpRule: '!' expr  */
-#line 243 "src/parser.ypp"
+#line 242 "src/parser.ypp"
                    { (yyval.astUnaryOp) = newOp((yyloc), UnaryNot, (yyvsp[0].astExpr));   }
 #line 1985 "src/parser.tab.cpp"
     break;
 
   case 47: /* unaryOpRule: '-' expr  */
-#line 244 "src/parser.ypp"
+#line 243 "src/parser.ypp"
                                      { (yyval.astUnaryOp) = newOp((yyloc), UnaryMinus, (yyvsp[0].astExpr)); }
 #line 1991 "src/parser.tab.cpp"
     break;
 
   case 48: /* lvalue: IDENT  */
-#line 248 "src/parser.ypp"
+#line 247 "src/parser.ypp"
               { (yyval.astLvalue) = new Ident((yylsp[0]), (yyvsp[0].repr)); free((yyvsp[0].repr)); }
 #line 1997 "src/parser.tab.cpp"
     break;
 
   case 49: /* lvalue: expr '.' IDENT  */
-#line 249 "src/parser.ypp"
+#line 248 "src/parser.ypp"
                          {
 		(yyval.astLvalue) = new DotOp((yyloc), sptOf((yyvsp[-2].astExpr)), sptOf(new Ident((yylsp[0]), (yyvsp[0].repr))));
 		free((yyvsp[0].repr));
@@ -2006,43 +2006,43 @@ yyreduce:
     break;
 
   case 50: /* callArgListLeastOne: expr  */
-#line 256 "src/parser.ypp"
+#line 255 "src/parser.ypp"
              { (yyval.astCallArgList) = new CallParamList((yyloc)); (yyval.astCallArgList)->add((yyvsp[0].astExpr)); }
 #line 2012 "src/parser.tab.cpp"
     break;
 
   case 51: /* callArgListLeastOne: expr ',' callArgListLeastOne  */
-#line 257 "src/parser.ypp"
+#line 256 "src/parser.ypp"
                                        { (yyval.astCallArgList) = (yyvsp[0].astCallArgList); (yyval.astCallArgList)->add_front((yyvsp[-2].astExpr)); }
 #line 2018 "src/parser.tab.cpp"
     break;
 
   case 52: /* callArgList: %empty  */
-#line 260 "src/parser.ypp"
+#line 259 "src/parser.ypp"
                               { (yyval.astCallArgList) = new CallParamList((yyloc)); }
 #line 2024 "src/parser.tab.cpp"
     break;
 
   case 53: /* callArgList: callArgListLeastOne  */
-#line 261 "src/parser.ypp"
+#line 260 "src/parser.ypp"
                               { (yyval.astCallArgList) = (yyvsp[0].astCallArgList); }
 #line 2030 "src/parser.tab.cpp"
     break;
 
   case 54: /* elseRule: END  */
-#line 265 "src/parser.ypp"
+#line 264 "src/parser.ypp"
                               { (yyval.astExpr) = new ExprBlock((yyloc)); }
 #line 2036 "src/parser.tab.cpp"
     break;
 
   case 55: /* elseRule: ELSE exprBlock END  */
-#line 266 "src/parser.ypp"
+#line 265 "src/parser.ypp"
                               { (yyval.astExpr) = (yyvsp[-1].astExprBlock); }
 #line 2042 "src/parser.tab.cpp"
     break;
 
   case 56: /* elseRule: ELSEIF expr exprBlock elseRule  */
-#line 267 "src/parser.ypp"
+#line 266 "src/parser.ypp"
                                          {
 		(yyval.astExpr) = new FlowIfElse((yyloc), sptOf((yyvsp[-2].astExpr)), sptOf((yyvsp[-1].astExprBlock)), sptOf((yyvsp[0].astExpr)));
 	}
@@ -2050,7 +2050,7 @@ yyreduce:
     break;
 
   case 57: /* elseRule: ELSE IF expr exprBlock elseRule END  */
-#line 270 "src/parser.ypp"
+#line 269 "src/parser.ypp"
                                               {
 		throw ParseError((yylsp[-5]), "syntax: use \"elseif\" instead of \"else if\"");
 	}
@@ -2058,19 +2058,19 @@ yyreduce:
     break;
 
   case 58: /* typeSpec: %empty  */
-#line 276 "src/parser.ypp"
+#line 275 "src/parser.ypp"
                              { (yyval.astIdent) = new Ident((yyloc), "Any");        }
 #line 2064 "src/parser.tab.cpp"
     break;
 
   case 59: /* typeSpec: TYPE_SPEC IDENT  */
-#line 277 "src/parser.ypp"
+#line 276 "src/parser.ypp"
                              { (yyval.astIdent) = new Ident((yylsp[0]), (yyvsp[0].repr)); free((yyvsp[0].repr)); }
 #line 2070 "src/parser.tab.cpp"
     break;
 
   case 60: /* argRule: IDENT typeSpec  */
-#line 280 "src/parser.ypp"
+#line 279 "src/parser.ypp"
                        {
 		(yyval.astArgument) = new Argument((yyloc), sptOf(new Ident((yylsp[-1]), (yyvsp[-1].repr))), sptOf((yyvsp[0].astIdent)));
 		free((yyvsp[-1].repr));
@@ -2079,19 +2079,19 @@ yyreduce:
     break;
 
   case 61: /* structRule: MUTABLE structDef  */
-#line 288 "src/parser.ypp"
+#line 287 "src/parser.ypp"
                           { (yyval.astStructDef) = (yyvsp[0].astStructDef); (yyval.astStructDef)->isMutable = true; }
 #line 2085 "src/parser.tab.cpp"
     break;
 
   case 62: /* structRule: structDef  */
-#line 289 "src/parser.ypp"
+#line 288 "src/parser.ypp"
                           { (yyval.astStructDef) = (yyvsp[0].astStructDef); }
 #line 2091 "src/parser.tab.cpp"
     break;
 
   case 63: /* structDef: STRUCT IDENT structArgs END  */
-#line 293 "src/parser.ypp"
+#line 292 "src/parser.ypp"
                                     {
 		(yyval.astStructDef) = new DefStruct((yyloc), false, sptOf(new Ident((yylsp[-2]), (yyvsp[-2].repr))));
 		(yyval.astStructDef)->members = *((yyvsp[-1].astArgList));
@@ -2101,19 +2101,19 @@ yyreduce:
     break;
 
   case 64: /* structArgs: %empty  */
-#line 301 "src/parser.ypp"
+#line 300 "src/parser.ypp"
                            { (yyval.astArgList) = new ArgumentList(); }
 #line 2107 "src/parser.tab.cpp"
     break;
 
   case 65: /* structArgs: ';' structArgs  */
-#line 302 "src/parser.ypp"
+#line 301 "src/parser.ypp"
                            { (yyval.astArgList) = (yyvsp[0].astArgList); }
 #line 2113 "src/parser.tab.cpp"
     break;
 
   case 66: /* structArgs: argRule ';' structArgs  */
-#line 303 "src/parser.ypp"
+#line 302 "src/parser.ypp"
                                  {
 		(yyval.astArgList) = (yyvsp[0].astArgList);
 		(yyval.astArgList)->push_front(sptOf((yyvsp[-2].astArgument)));
@@ -2122,7 +2122,7 @@ yyreduce:
     break;
 
   case 67: /* structArgs: argRule  */
-#line 307 "src/parser.ypp"
+#line 306 "src/parser.ypp"
                   {
 		(yyval.astArgList) = new ArgumentList();;
 		(yyval.astArgList)->push_front(sptOf((yyvsp[0].astArgument)));
@@ -2131,7 +2131,7 @@ yyreduce:
     break;
 
   case 68: /* funcRule: FUNCTION IDENT_LEFT_PAR funcArgs ')' typeSpec exprBlock END  */
-#line 315 "src/parser.ypp"
+#line 314 "src/parser.ypp"
                                                                     {
 		std::string name((yyvsp[-5].repr));
 		name.pop_back();
@@ -2144,19 +2144,19 @@ yyreduce:
     break;
 
   case 69: /* funcArgs: %empty  */
-#line 325 "src/parser.ypp"
+#line 324 "src/parser.ypp"
                            { (yyval.astArgList) = new ArgumentList(); }
 #line 2150 "src/parser.tab.cpp"
     break;
 
   case 70: /* funcArgs: funcArgsLeastOne  */
-#line 326 "src/parser.ypp"
+#line 325 "src/parser.ypp"
                            { (yyval.astArgList) = (yyvsp[0].astArgList); }
 #line 2156 "src/parser.tab.cpp"
     break;
 
   case 71: /* funcArgsLeastOne: argRule ',' funcArgsLeastOne  */
-#line 329 "src/parser.ypp"
+#line 328 "src/parser.ypp"
                                      {
 		(yyval.astArgList) = (yyvsp[0].astArgList);
 		(yyval.astArgList)->push_front(sptOf((yyvsp[-2].astArgument)));
@@ -2165,7 +2165,7 @@ yyreduce:
     break;
 
   case 72: /* funcArgsLeastOne: argRule  */
-#line 333 "src/parser.ypp"
+#line 332 "src/parser.ypp"
                   {
 		(yyval.astArgList) = new ArgumentList();;
 		(yyval.astArgList)->push_front(sptOf((yyvsp[0].astArgument)));
@@ -2404,7 +2404,7 @@ yyreturn:
   return yyresult;
 }
 
-#line 339 "src/parser.ypp"
+#line 338 "src/parser.ypp"
 
 
 void yyerror(Ast*, const char *s) {

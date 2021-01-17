@@ -51,25 +51,24 @@ class Env : public std::enable_shared_from_this<Env> {
 protected:
 	std::map<std::string, spt<DefStruct>> memberToStruct;
 	int lastTypeId;
-	bool softScope;
 public:
 	spt<Env> from;
 	std::map<std::string, spt<Declaration>> declarations;
 	spt<DefFunc> inFunction;
-	Env(spt<Env> from = nullptr, bool softScope = false);
-	spt<Env> child(bool soft = false);
+	Env(spt<Env> from = nullptr);
+	spt<Env> child();
 
 	bool isNameDefined(spt<Ident> name);
 	bool isNameLocal(spt<Ident> name, bool forceLocal = false);
 	void add(spt<Ident> name, spt<Declaration> decl);
 	void declFunction(spt<Ident> name, spt<DefFunc> decl);
-	spt<Declaration> getDeclaration(spt<Ident> name, bool forceLocal = false);
+	spt<Declaration> getDeclaration(spt<Ident> name);
 	spt<DefFunc> getFunction(spt<Ident> name);
 	spt<Callable> getCallable(spt<Ident> name);
 	spt<DefStruct> getStruct(spt<Ident> name);
 	spt<Type> getType(spt<Ident> name);
 	spt<Type> getType(std::string name);
-	spt<Ident> getInitialVar(spt<Ident> name, bool forceLocal = false);
+	spt<Ident> getInitialVar(spt<Ident> name);
 	spt<Ident> getOrCreateVar(spt<Ident> name, bool force = false, bool forceLocal = false);
 
 	spt<DefStruct> structWith(spt<Ident> name);
@@ -142,6 +141,7 @@ struct Type : public Declaration {
 	int typeId;
 	inline Type(const YYLTYPE loc, spt<Ident> name) : Declaration(loc), name(name) {};
 	bool isKnown();
+	bool isStruct();
 };
 struct BaseType : public Type {
 	PrimitiveType type;

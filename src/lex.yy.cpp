@@ -557,9 +557,7 @@ char *yytext;
 	}
 	#define YY_USER_ACTION updateYylloc();
 
-// %option bison-locations
-// \"([ -~]{-}[\\\"]|\\\\|\\\"|\\n|\\t)*\" {
-#line 563 "src/lex.yy.cpp"
+#line 561 "src/lex.yy.cpp"
 
 #define INITIAL 0
 
@@ -741,9 +739,9 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	register int yy_act;
     
-#line 77 "src/lexer.lpp"
+#line 75 "src/lexer.lpp"
 
-#line 747 "src/lex.yy.cpp"
+#line 745 "src/lex.yy.cpp"
 
 	if ( !(yy_init) )
 		{
@@ -841,23 +839,23 @@ case 1:
 (yy_c_buf_p) = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 78 "src/lexer.lpp"
+#line 76 "src/lexer.lpp"
 ; // Comment
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 79 "src/lexer.lpp"
+#line 77 "src/lexer.lpp"
 ;
 	YY_BREAK
 case 3:
 /* rule 3 can match eol */
 YY_RULE_SETUP
-#line 80 "src/lexer.lpp"
+#line 78 "src/lexer.lpp"
 { if (emitSemicolon) { emitSemicolon = false; return ';'; } }
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 82 "src/lexer.lpp"
+#line 80 "src/lexer.lpp"
 {
 	emitSemicolon = true;
 	yylval.repr = strdup(yytext);
@@ -866,7 +864,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 87 "src/lexer.lpp"
+#line 85 "src/lexer.lpp"
 {
 	emitSemicolon = false;
 	yylval.repr = strdup(yytext);
@@ -875,7 +873,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 92 "src/lexer.lpp"
+#line 90 "src/lexer.lpp"
 {
 	emitSemicolon = false;
 	yylval.repr = strdup(yytext);
@@ -884,7 +882,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 97 "src/lexer.lpp"
+#line 95 "src/lexer.lpp"
 {
 	emitSemicolon = true;
 	yylval.repr = strdup(yytext);
@@ -893,7 +891,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 103 "src/lexer.lpp"
+#line 101 "src/lexer.lpp"
 {
 	emitSemicolon = false;
 	std::string word(yytext);
@@ -911,7 +909,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 117 "src/lexer.lpp"
+#line 115 "src/lexer.lpp"
 {
 	emitSemicolon = true;
 	yylval.repr = strdup(yytext);
@@ -920,7 +918,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 123 "src/lexer.lpp"
+#line 121 "src/lexer.lpp"
 {
 	emitSemicolon = true;
 	yylval.repr = strdup(yytext);
@@ -929,7 +927,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 128 "src/lexer.lpp"
+#line 126 "src/lexer.lpp"
 {
 	emitSemicolon = false;
 	std::string word(yytext);
@@ -943,48 +941,48 @@ YY_RULE_SETUP
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 139 "src/lexer.lpp"
+#line 137 "src/lexer.lpp"
 { emitSemicolon = false; return '.'; }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 140 "src/lexer.lpp"
+#line 138 "src/lexer.lpp"
 { emitSemicolon = false; return '('; }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 141 "src/lexer.lpp"
+#line 139 "src/lexer.lpp"
 { emitSemicolon = true;  return ')'; }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 142 "src/lexer.lpp"
+#line 140 "src/lexer.lpp"
 { emitSemicolon = false; return ':'; }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 143 "src/lexer.lpp"
+#line 141 "src/lexer.lpp"
 { emitSemicolon = false; return ';'; }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 144 "src/lexer.lpp"
+#line 142 "src/lexer.lpp"
 { emitSemicolon = false; return ','; }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 145 "src/lexer.lpp"
+#line 143 "src/lexer.lpp"
 { emitSemicolon = false; return TYPE_SPEC; }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 147 "src/lexer.lpp"
+#line 145 "src/lexer.lpp"
 {
 	throw SyntaxError(yylloc, yytext);
 }
 	YY_BREAK
 case YY_STATE_EOF(INITIAL):
-#line 150 "src/lexer.lpp"
+#line 148 "src/lexer.lpp"
 {
 	sendEndSignal = !sendEndSignal;
 	if (sendEndSignal) {
@@ -996,10 +994,10 @@ case YY_STATE_EOF(INITIAL):
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 158 "src/lexer.lpp"
+#line 156 "src/lexer.lpp"
 ECHO;
 	YY_BREAK
-#line 1003 "src/lex.yy.cpp"
+#line 1001 "src/lex.yy.cpp"
 
 	case YY_END_OF_BUFFER:
 		{
@@ -1968,7 +1966,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 158 "src/lexer.lpp"
+#line 156 "src/lexer.lpp"
 
 
 

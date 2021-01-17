@@ -36,9 +36,9 @@ std::string regNameCode(RegName reg) {
 	case r8: return "%r8";
 	case r9: return "%r9";
 	case r10: return "%r10";
-	case r10b: return "%r10b";
 	case r11: return "%r11";
 	case r12: return "%r12";
+	case r12b: return "%r12b";
 	case r13: return "%r13";
 	case r14: return "%r14";
 	case r15: return "%r15";
@@ -210,7 +210,6 @@ spt<AsmLoc> AsmRegArg::withOffset(int offset) {
 }
 
 void AsmGlobalVar::emit(std::ostream& os) {
-	// os << "$" << getLabel();
 	os << getLabel() << "(%rip)";
 }
 std::string AsmGlobalVar::getLabel() {
@@ -242,7 +241,7 @@ void AsmFlag::emit(std::ostream& os) {
 */
 
 AsmIns::AsmIns(AsmInsName ins, std::vector<spt<AsmArg>> insArgs, std::string setLabel)
-	: hasLabel(!setLabel.empty()), labelName(setLabel), ins(ins), args(insArgs) {
+	: labelName(setLabel), hasLabel(!setLabel.empty()), ins(ins), args(insArgs) {
 	if ((int)args.size() != AsmIns::nbArgs(ins)) {
 		throw PJuliaError("Wrong number of arguments for asm instruction '"
 			+ AsmIns::codeOf(ins) + "' [INTERNAL]");
@@ -320,7 +319,6 @@ void AsmIns::emit(std::ostream& os) {
 		args[0]->emit(os);
 		iArgInit++;
 	}
-	// TODO : if multiple args using memory
 	for (int iArg = iArgInit; iArg < (int)args.size(); iArg++) {
 		if (iArg > iArgInit) {
 			os << ',';

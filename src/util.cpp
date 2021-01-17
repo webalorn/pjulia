@@ -13,7 +13,7 @@ YYLTYPE locLeft(YYLTYPE loc, int splitAt) {
 	return loc;
 }
 YYLTYPE locRight(YYLTYPE loc, int splitAt) {
-	loc.first_column = loc.first_column += splitAt;
+	loc.first_column += splitAt;
 	return loc;
 }
 

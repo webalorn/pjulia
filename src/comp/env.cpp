@@ -75,7 +75,7 @@ void ReturnVal::initEnv(spt<Env> parentEnv) {
 	value->initEnv(env);
 }
 void FlowFor::initEnv(spt<Env> parentEnv) {
-	env = parentEnv->child(true); // TODO : WTF is going on with the for loop ???
+	env = parentEnv->child();
 
 	counter->initEnv(env);
 	env->getOrCreateVar(counter, true, true);
@@ -85,7 +85,7 @@ void FlowFor::initEnv(spt<Env> parentEnv) {
 	body->initEnv(env);
 }
 void FlowWhile::initEnv(spt<Env> parentEnv) {
-	env = parentEnv->child(true);
+	env = parentEnv->child();
 	condition->initEnv(env);
 	body->initEnv(env);
 }
@@ -101,7 +101,7 @@ void Argument::initEnv(spt<Env> parentEnv) {
 	env = parentEnv;
 	name->initEnv(env);
 	typeName->initEnv(env);
-	env->getOrCreateVar(name, true);
+	env->getOrCreateVar(name, true, true);
 }
 void DefStruct::initEnv(spt<Env> parentEnv) {
 	name->initEnv(parentEnv);
@@ -128,10 +128,7 @@ void DefFunc::initEnv(spt<Env> parentEnv) {
 	body->initEnv(env);
 }
 void FuncDispacher::initEnv(spt<Env>) {
-	// env = parentEnv;
-	// for (auto& f : functions) {
-	// 	f->initEnv(env);
-	// }
+	// Should not happen
 	throw JError(NO_LOC, "[INTERNAL FuncDispacher::initEnv]");
 }
 

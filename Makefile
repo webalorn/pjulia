@@ -1,9 +1,15 @@
+UNAME=$(shell uname)
 CXX=g++ -std=c++14
-CPPFLAGS=-g -O2 -Wall -Wextra -Wno-deprecated-register
+CPPFLAGS=-O2 -Wall -Wextra
 LDFLAGS=
 SRC_DIR=src
 SRCS=$(shell find src -type f -name '*.cpp')
 OBJS=$(subst .cpp,.o,$(SRCS))
+
+ifeq ($(UNAME),Darwin)
+	CXX=clang++ -std=c++14
+	CPPFLAGS += -Wno-deprecated-register
+endif
 
 all: pjuliac
 

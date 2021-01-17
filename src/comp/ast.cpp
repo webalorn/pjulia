@@ -6,14 +6,14 @@
 */
 spt<Ident> identAny;
 
-Env::Env(spt<Env> fromVal, bool softScope) : from(fromVal), lastTypeId(0), softScope(softScope) {
+Env::Env(spt<Env> fromVal) : lastTypeId(0), from(fromVal) {
 	if (from) {
 		inFunction = from->inFunction;
 	}
 }
 
-spt<Env> Env::child(bool soft) {
-	return sptOf(new Env(shared_from_this(), soft));
+spt<Env> Env::child() {
+	return sptOf(new Env(shared_from_this()));
 }
 
 bool Env::isNameDefined(spt<Ident> name) {
@@ -21,7 +21,9 @@ bool Env::isNameDefined(spt<Ident> name) {
 		|| (from && from->isNameDefined(name));
 }
 bool Env::isNameLocal(spt<Ident> name, bool forceLocal) {
-	return declarations.count(name->val) || (!forceLocal && softScope && from->isNameLocal(name));
+	if (declarations.count(name->val)) return true;
+	if (!forceLocal && from && from->from) return from->isNameLocal(name);
+	return false;
 }
 void Env::add(spt<Ident> name, spt<Declaration> decl) {
 	if (isNameLocal(name)) {
@@ -71,17 +73,14 @@ void Env::declFunction(spt<Ident> name, spt<DefFunc> decl) {
 		add(name, decl);
 	}
 }
-spt<Declaration> Env::getDeclaration(spt<Ident> name, bool forceLocal) {
-	if (!isNameLocal(name, forceLocal)) {
+spt<Declaration> Env::getDeclaration(spt<Ident> name) {
+	if (declarations.count(name->val) == 0) {
 		if (from) {
 			return from->getDeclaration(name);
 		}
 		throw JError(name->loc, "The identifier " + name->val + " is not defined");
 	}
-	if (declarations.count(name->val)) {
-		return declarations[name->val];
-	}
-	return from->getDeclaration(name); // in case of softScope
+	return declarations[name->val];
 }
 spt<DefFunc> Env::getFunction(spt<Ident> name) {
 	auto pt = std::dynamic_pointer_cast<DefFunc>(getDeclaration(name));
@@ -114,8 +113,8 @@ spt<Type> Env::getType(spt<Ident> name) {
 spt<Type> Env::getType(std::string name) {
 	return getType(sptOf(new Ident(NO_LOC, name)));
 }
-spt<Ident> Env::getInitialVar(spt<Ident> name, bool forceLocal) {
-	auto pt = std::dynamic_pointer_cast<Ident>(getDeclaration(name, forceLocal));
+spt<Ident> Env::getInitialVar(spt<Ident> name) {
+	auto pt = std::dynamic_pointer_cast<Ident>(getDeclaration(name));
 	if (!pt) {
 		throw JError(name->loc, name->val + " is not a variable");
 	}
@@ -147,6 +146,7 @@ Ast::Ast() : env(new Env()) {
 	declarations.push_back(sptOf(new BuiltinPrint()));
 	declarations.push_back(sptOf(new BuiltinPrintLn()));
 	declarations.push_back(sptOf(new BuiltinDiv()));
+	// declarations.push_back(sptOf(new BuiltinEqual()));
 
 	identAny = typeAny->name;
 	spt<Ident> mainIdent = sptOf(new Ident(NO_LOC, "@main"));
@@ -186,6 +186,9 @@ void Ast::addDeclaration(spt<Declaration> decl) {
 */
 bool Type::isKnown() {
 	return name->val != "Any";
+}
+bool Type::isStruct() {
+	return (bool)std::dynamic_pointer_cast<DefStruct>(shared_from_this());
 }
 
 spt<Type> mergeTypes(spt<Type> type1, spt<Type> type2, spt<Env> env) {
@@ -492,7 +495,6 @@ void ExprBlock::show(std::ostream& os) const {
 		os << " ;\n";
 	}
 	os << "])";
-	// showType(os, type);
 }
 void BaseType::show(std::ostream& os) const {
 	os << type;
