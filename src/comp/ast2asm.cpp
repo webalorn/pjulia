@@ -439,7 +439,11 @@ void FlowFor::emitAsm(spt<AsmProg> prog, spt<AsmFunc> func) {
 	func->add(asmJumpIf, { flagArg("g"), labelArg(labelEnd->getLabel(prog)) });
 
 	func->add(labelBegin);
+	func->add(asmMov, { varLoc, regArg(r10) });
+	func->add(asmPushq, { regArg(r10) });
 	body->emitAsm(prog, func);
+	func->add(asmPopq, { regArg(r10) });
+	func->add(asmMov, { regArg(r10), varLoc });
 
 	func->add(asmMov, { varLoc, regArg(rcx) });
 	func->add(asmInc, { varLoc });

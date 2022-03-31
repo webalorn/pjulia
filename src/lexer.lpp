@@ -146,6 +146,10 @@
 	throw SyntaxError(yylloc, yytext);
 }
 <<EOF>> {
+	if (emitSemicolon) {
+		emitSemicolon = false;
+		return ';';
+	}
 	sendEndSignal = !sendEndSignal;
 	if (sendEndSignal) {
 		yyterminate();

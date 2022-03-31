@@ -984,6 +984,10 @@ YY_RULE_SETUP
 case YY_STATE_EOF(INITIAL):
 #line 148 "src/lexer.lpp"
 {
+	if (emitSemicolon) {
+		emitSemicolon = false;
+		return ';';
+	}
 	sendEndSignal = !sendEndSignal;
 	if (sendEndSignal) {
 		yyterminate();
@@ -994,10 +998,10 @@ case YY_STATE_EOF(INITIAL):
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 156 "src/lexer.lpp"
+#line 160 "src/lexer.lpp"
 ECHO;
 	YY_BREAK
-#line 1001 "src/lex.yy.cpp"
+#line 1005 "src/lex.yy.cpp"
 
 	case YY_END_OF_BUFFER:
 		{
@@ -1966,7 +1970,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 156 "src/lexer.lpp"
+#line 160 "src/lexer.lpp"
 
 
 
